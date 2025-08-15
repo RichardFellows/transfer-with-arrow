@@ -92,13 +92,18 @@ def copy_stackoverflow_tables(
         print(f"- Package state: {package.state}")
         
         # Try to access table information if available
-        if hasattr(package, 'jobs') and package.jobs:
-            table_count = len([job for job in package.jobs if hasattr(job, 'table_name')])
-            print(f"- Tables processed: {table_count}")
-            
-            for job in package.jobs:
-                if hasattr(job, 'table_name') and hasattr(job, 'state'):
-                    print(f"  - {job.table_name}: {job.state}")
+        try:
+            if hasattr(package, 'jobs') and package.jobs:
+                jobs_list = list(package.jobs) if hasattr(package.jobs, '__iter__') else []
+                table_count = len([job for job in jobs_list if hasattr(job, 'table_name')])
+                print(f"- Tables processed: {table_count}")
+                
+                for job in jobs_list:
+                    if hasattr(job, 'table_name') and hasattr(job, 'state'):
+                        print(f"  - {job.table_name}: {job.state}")
+        except (TypeError, AttributeError):
+            # Handle cases where jobs is a mock or not iterable
+            print("- Tables processed: (info not available)")
     else:
         print("- No load packages found")
     
