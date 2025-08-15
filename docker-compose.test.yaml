@@ -1,4 +1,46 @@
 services:
+  mssql-source-test:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: mssql-source-test
+    hostname: mssql-source
+    environment:
+      - ACCEPT_EULA=Y
+      - SA_PASSWORD=Strong!Passw0rd
+      - MSSQL_PID=Express
+    ports:
+      - "1435:1433"
+    networks:
+      - dlt-test-network
+    volumes:
+      - mssql-source-test-data:/var/opt/mssql
+    healthcheck:
+      test: ["CMD-SHELL", "timeout 1 bash -c '</dev/tcp/localhost/1433' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  mssql-dest-test:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: mssql-dest-test
+    hostname: mssql-dest
+    environment:
+      - ACCEPT_EULA=Y
+      - SA_PASSWORD=Strong!Passw0rd
+      - MSSQL_PID=Express
+    ports:
+      - "1436:1433"
+    networks:
+      - dlt-test-network
+    volumes:
+      - mssql-dest-test-data:/var/opt/mssql
+    healthcheck:
+      test: ["CMD-SHELL", "timeout 1 bash -c '</dev/tcp/localhost/1433' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
   dlt-runner-test:
     build:
       context: .
@@ -12,7 +54,18 @@ services:
       - dlt-test-network
     environment:
       - PYTHONPATH=/app:/tests
+      - TEST_SOURCE_CONNECTION_STRING=mssql+pyodbc://sa:Strong!Passw0rd@mssql-source:1433/StackOverflowMini?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes&Encrypt=yes
+      - TEST_DEST_CONNECTION_STRING=mssql+pyodbc://sa:Strong!Passw0rd@mssql-dest:1433/TargetDB?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes&Encrypt=yes
     command: pytest /tests -v --tb=short
+    depends_on:
+      mssql-source-test:
+        condition: service_healthy
+      mssql-dest-test:
+        condition: service_healthy
+
+volumes:
+  mssql-source-test-data:
+  mssql-dest-test-data:
 
 networks:
   dlt-test-network:
