@@ -142,14 +142,26 @@ def clean_dest_db(test_dest_db):
     engine = sa.create_engine(test_dest_db)
     
     with engine.connect() as conn:
-        # Drop schema if exists
-        conn.execute(sa.text("""
-            IF EXISTS (SELECT * FROM sys.schemas WHERE name = 'stackoverflow_data')
-            BEGIN
-                DROP SCHEMA stackoverflow_data
-            END
-        """))
-        conn.commit()
+        # Drop all tables in stackoverflow_data schema first, then drop schema
+        try:
+            conn.execute(sa.text("""
+                IF EXISTS (SELECT * FROM sys.schemas WHERE name = 'stackoverflow_data')
+                BEGIN
+                    DECLARE @sql NVARCHAR(MAX) = '';
+                    SELECT @sql = @sql + 'DROP TABLE [stackoverflow_data].[' + TABLE_NAME + '];'
+                    FROM INFORMATION_SCHEMA.TABLES 
+                    WHERE TABLE_SCHEMA = 'stackoverflow_data';
+                    
+                    IF @sql != ''
+                        EXEC sp_executesql @sql;
+                    
+                    DROP SCHEMA stackoverflow_data;
+                END
+            """))
+            conn.commit()
+        except Exception as e:
+            # If cleanup fails, just continue - tests will still work
+            pass
     
     yield test_dest_db
 

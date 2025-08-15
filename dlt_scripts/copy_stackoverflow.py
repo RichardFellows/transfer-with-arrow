@@ -28,9 +28,6 @@ def copy_stackoverflow_tables(
     print(f"Source: {source_conn.split('@')[1].split('?')[0]}")  # Print host info only
     print(f"Destination: {dest_conn.split('@')[1].split('?')[0]}")
     
-    # Create destination engine
-    dest_engine = sa.create_engine(dest_conn)
-    
     # Configure source with PyArrow backend
     print(f"\nConfiguring source with PyArrow backend...")
     
@@ -65,10 +62,10 @@ def copy_stackoverflow_tables(
             )
             print("Incremental loading enabled for Posts table (CreationDate)")
     
-    # Create pipeline
+    # Create pipeline with connection string instead of engine
     pipeline = dlt.pipeline(
         pipeline_name="stackoverflow_copy",
-        destination=dlt.destinations.sqlalchemy(dest_engine),
+        destination=dlt.destinations.sqlalchemy(dest_conn),
         dataset_name="stackoverflow_data"
     )
     
@@ -87,13 +84,23 @@ def copy_stackoverflow_tables(
     print(f"\n✅ Copy completed successfully!")
     print(f"Duration: {end_time - start_time}")
     print("\nLoad statistics:")
-    print(f"- Tables loaded: {len(load_info.load_packages[0].tables) if load_info.load_packages else 0}")
     
-    # Print row counts if available
+    # Print basic statistics from load_info
     if load_info.load_packages:
-        for table_name, table_info in load_info.load_packages[0].tables.items():
-            if hasattr(table_info, 'row_count'):
-                print(f"  - {table_name}: {table_info.row_count} rows")
+        package = load_info.load_packages[0]
+        print(f"- Load ID: {package.load_id}")
+        print(f"- Package state: {package.state}")
+        
+        # Try to access table information if available
+        if hasattr(package, 'jobs') and package.jobs:
+            table_count = len([job for job in package.jobs if hasattr(job, 'table_name')])
+            print(f"- Tables processed: {table_count}")
+            
+            for job in package.jobs:
+                if hasattr(job, 'table_name') and hasattr(job, 'state'):
+                    print(f"  - {job.table_name}: {job.state}")
+    else:
+        print("- No load packages found")
     
     return load_info
 

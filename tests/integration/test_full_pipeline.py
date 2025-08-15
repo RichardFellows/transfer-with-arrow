@@ -39,7 +39,7 @@ class TestFullPipeline:
                 result = conn.execute(sa.text(f"""
                     SELECT COUNT(*) 
                     FROM INFORMATION_SCHEMA.TABLES 
-                    WHERE TABLE_SCHEMA = 'dbo' 
+                    WHERE TABLE_SCHEMA = 'stackoverflow_data' 
                     AND TABLE_NAME = '{table}'
                 """))
                 table_exists = result.scalar()
@@ -47,7 +47,7 @@ class TestFullPipeline:
                 
                 # Check row count
                 result = conn.execute(sa.text(f"""
-                    SELECT COUNT(*) FROM dbo.{table}
+                    SELECT COUNT(*) FROM stackoverflow_data.{table}
                 """))
                 row_count = result.scalar()
                 expected_count = sample_table_counts[table]
@@ -67,16 +67,18 @@ class TestFullPipeline:
         dest_engine = sa.create_engine(test_env_vars['dest'])
         
         with dest_engine.connect() as conn:
-            # Check Users table exists and has data
+            # Check Users table exists and has data in stackoverflow_data schema
             result = conn.execute(sa.text("""
-                SELECT COUNT(*) FROM dbo.Users
+                SELECT COUNT(*) FROM stackoverflow_data.users
             """))
             assert result.scalar() == 3
             
-            # Check that Posts table was not created (this test may not work in master db)
-            # Since we're using master db, all tables will exist, so just check Posts has data
+            # Check that Posts table was not created
             result = conn.execute(sa.text("""
-                SELECT COUNT(*) FROM dbo.Posts
+                SELECT COUNT(*) 
+                FROM INFORMATION_SCHEMA.TABLES 
+                WHERE TABLE_SCHEMA = 'stackoverflow_data' 
+                AND TABLE_NAME = 'posts'
             """))
             assert result.scalar() == 0
     
@@ -99,7 +101,7 @@ class TestFullPipeline:
         
         with dest_engine.connect() as conn:
             result = conn.execute(sa.text("""
-                SELECT COUNT(*) FROM dbo.Users
+                SELECT COUNT(*) FROM stackoverflow_data.Users
             """))
             # Should have 6 rows (3 original + 3 appended)
             assert result.scalar() == 6
@@ -144,7 +146,7 @@ class TestFullPipeline:
         with dest_engine.connect() as conn:
             dest_users = conn.execute(sa.text("""
                 SELECT Id, DisplayName, Reputation 
-                FROM dbo.Users 
+                FROM stackoverflow_data.users 
                 ORDER BY Id
             """)).fetchall()
         
@@ -175,7 +177,7 @@ class TestFullPipeline:
         
         with dest_engine.connect() as conn:
             result = conn.execute(sa.text("""
-                SELECT COUNT(*) FROM dbo.Posts
+                SELECT COUNT(*) FROM stackoverflow_data.Posts
             """))
             assert result.scalar() == 3
     
@@ -196,7 +198,7 @@ class TestFullPipeline:
             result = conn.execute(sa.text("""
                 SELECT COUNT(*) 
                 FROM INFORMATION_SCHEMA.TABLES 
-                WHERE TABLE_SCHEMA = 'dbo'
+                WHERE TABLE_SCHEMA = 'stackoverflow_data'
             """))
             # Should be 0 tables since the table doesn't exist
             assert result.scalar() == 0
@@ -220,7 +222,7 @@ class TestPipelinePerformance:
         dest_engine = sa.create_engine(test_env_vars['dest'])
         with dest_engine.connect() as conn:
             result = conn.execute(sa.text("""
-                SELECT COUNT(*) FROM dbo.Users
+                SELECT COUNT(*) FROM stackoverflow_data.Users
             """))
             assert result.scalar() == 3
     
@@ -242,6 +244,6 @@ class TestPipelinePerformance:
         with dest_engine.connect() as conn:
             for table in tables:
                 result = conn.execute(sa.text(f"""
-                    SELECT COUNT(*) FROM dbo.{table}
+                    SELECT COUNT(*) FROM stackoverflow_data.{table}
                 """))
                 assert result.scalar() > 0, f"Table {table} has no data"
