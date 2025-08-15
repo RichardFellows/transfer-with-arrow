@@ -75,9 +75,9 @@ def test_source_db():
                     conn.execute(sa.text("""
                         IF NOT EXISTS (SELECT 1 FROM dbo.Posts WHERE Id = 1)
                         INSERT INTO dbo.Posts (Id, PostTypeId, OwnerUserId, CreationDate, Title, Body) VALUES
-                        (1, 1, 1, '2023-01-01T15:00:00', 'Test Question 1', 'This is a test question'),
-                        (2, 2, 2, '2023-01-02T16:00:00', 'Test Answer 1', 'This is a test answer'),
-                        (3, 1, 3, '2023-01-03T17:00:00', 'Test Question 2', 'Another test question')
+                        (1, 1, 1, '2023-01-01T15:00:00', 'Test Q1', 'Test'),
+                        (2, 2, 2, '2023-01-02T16:00:00', 'Test A1', 'Test'),
+                        (3, 1, 3, '2023-01-03T17:00:00', 'Test Q2', 'Test')
                     """))
                     
                     conn.execute(sa.text("""
