@@ -1,0 +1,20 @@
+# DLT configuration
+[sources.sql_database]
+backend="pyarrow"
+reflection_level="full_with_precision"
+chunk_size=10000
+schema="dbo"
+
+[sources.sql_database.backend_kwargs]
+tz="UTC"
+
+[destination.mssql]
+create_indexes=false
+has_case_sensitive_identifiers=false
+
+[normalize.parquet_normalizer]
+add_dlt_load_id=true
+add_dlt_id=false
+
+[runtime]
+log_level="INFO"

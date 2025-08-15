@@ -1,0 +1,72 @@
+services:
+  mssql-source:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: mssql-source
+    environment:
+      - ACCEPT_EULA=Y
+      - SA_PASSWORD=Strong!Passw0rd
+      - MSSQL_PID=Developer
+      - MSSQL_AGENT_ENABLED=true
+    ports:
+      - "1433:1433"
+    volumes:
+      - mssql-source-data:/var/opt/mssql
+      - ./backups:/var/opt/mssql/backups
+      - ./scripts:/scripts
+    networks:
+      - dlt-network
+    healthcheck:
+      test: ["CMD", "/opt/mssql-tools/bin/sqlcmd", "-S", "localhost", "-U", "sa", "-P", "Strong!Passw0rd", "-Q", "SELECT 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  mssql-dest:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: mssql-dest
+    environment:
+      - ACCEPT_EULA=Y
+      - SA_PASSWORD=Strong!Passw0rd
+      - MSSQL_PID=Developer
+      - MSSQL_AGENT_ENABLED=true
+    ports:
+      - "1434:1433"
+    volumes:
+      - mssql-dest-data:/var/opt/mssql
+      - ./scripts:/scripts
+    networks:
+      - dlt-network
+    healthcheck:
+      test: ["CMD", "/opt/mssql-tools/bin/sqlcmd", "-S", "localhost", "-U", "sa", "-P", "Strong!Passw0rd", "-Q", "SELECT 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  dlt-runner:
+    build:
+      context: .
+      dockerfile: Dockerfile.runner
+    container_name: dlt-runner
+    depends_on:
+      mssql-source:
+        condition: service_healthy
+      mssql-dest:
+        condition: service_healthy
+    volumes:
+      - ./dlt_scripts:/app
+      - ./backups:/backups
+      - ./scripts:/scripts
+    networks:
+      - dlt-network
+    environment:
+      - SOURCE_CONNECTION_STRING=mssql+pyodbc://sa:Strong!Passw0rd@mssql-source:1433/StackOverflowMini?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes&Encrypt=yes&LongAsMax=yes
+      - DEST_CONNECTION_STRING=mssql+pyodbc://sa:Strong!Passw0rd@mssql-dest:1433/TargetDB?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes&Encrypt=yes&LongAsMax=yes
+    command: tail -f /dev/null  # Keep container running
+
+volumes:
+  mssql-source-data:
+  mssql-dest-data:
+
+networks:
+  dlt-network:
+    driver: bridge

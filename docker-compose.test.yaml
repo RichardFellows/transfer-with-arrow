@@ -1,0 +1,19 @@
+services:
+  dlt-runner-test:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    container_name: dlt-runner-test
+    volumes:
+      - ./dlt_scripts:/app
+      - ./tests:/tests
+      - ./pytest.ini:/pytest.ini
+    networks:
+      - dlt-test-network
+    environment:
+      - PYTHONPATH=/app:/tests
+    command: pytest /tests -v --tb=short
+
+networks:
+  dlt-test-network:
+    driver: bridge
