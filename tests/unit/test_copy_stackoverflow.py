@@ -37,16 +37,20 @@ class TestCopyStackoverflowTables:
             # Mock engine
             mock_engine.return_value = Mock()
             
-            # Mock sql_database source
+            # Mock sql_database source with proper DLT structure
             mock_source = Mock()
-            mock_source.resources = {
-                'Users': Mock(name='Users'),
-                'Posts': Mock(name='Posts')
-            }
-            mock_source.resources.values.return_value = [
-                Mock(name='Users'),
-                Mock(name='Posts')
-            ]
+            
+            # Create mock resources that behave like DltResourceDict
+            mock_users_resource = Mock()
+            mock_users_resource.name = 'Users'
+            mock_posts_resource = Mock()
+            mock_posts_resource.name = 'Posts'
+            
+            # Mock the resources dict-like object
+            mock_resources = Mock()
+            mock_resources.values.return_value = [mock_users_resource, mock_posts_resource]
+            mock_source.resources = mock_resources
+            
             mock_sql_db.return_value = mock_source
             mock_source.with_resources.return_value = mock_source
             
