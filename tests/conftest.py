@@ -2,6 +2,7 @@
 
 import pytest
 import os
+import time
 import sqlalchemy as sa
 from contextlib import contextmanager
 
@@ -9,105 +10,90 @@ from contextlib import contextmanager
 @pytest.fixture(scope="session")
 def test_source_db():
     """Use existing source database with test data setup."""
-    # Use environment variables if available, otherwise fall back to defaults
-    # These should point to the existing Docker containers
-    master_connection_string = os.getenv(
+    # For integration tests, just use master database with a test table
+    # This is simpler and more reliable than trying to create new databases
+    connection_string = os.getenv(
         'TEST_SOURCE_CONNECTION_STRING',
-        "mssql+pyodbc://sa:Strong!Passw0rd@mssql-source:1433/StackOverflowMini"
+        "mssql+pyodbc://sa:Strong!Passw0rd@mssql-source:1433/master"
         "?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes&Encrypt=yes"
-    ).replace("/StackOverflowMini", "/master")
+    )
     
-    connection_string = master_connection_string.replace("/master", "/StackOverflowMini")
-    
-    # Try to connect and setup test database and data
+    # Try to connect and setup test data
     try:
-        # First connect to master to create database
-        master_engine = sa.create_engine(master_connection_string)
-        with master_engine.connect() as conn:
-            conn.autocommit = True
-            try:
-                conn.execute(sa.text("CREATE DATABASE StackOverflowMini"))
-            except:
-                # Database might already exist
-                pass
+        # Wait a bit for SQL Server to be ready
+        time.sleep(5)
         
-        # Now connect to the test database
         engine = sa.create_engine(connection_string)
-        with engine.connect() as conn:
-            # Check if test data exists
+        
+        # Retry connection a few times
+        for attempt in range(3):
             try:
-                result = conn.execute(sa.text("SELECT COUNT(*) FROM dbo.Users"))
-                if result.scalar() >= 3:
-                    # Test data already exists
-                    return connection_string
-            except:
-                # Tables don't exist, we'll create them
-                pass
-            
-            # Create test tables if they don't exist
-            conn.execute(sa.text("""
-                IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='Users' AND xtype='U')
-                CREATE TABLE dbo.Users (
-                    Id INT PRIMARY KEY,
-                    DisplayName NVARCHAR(100),
-                    CreationDate DATETIME2,
-                    Reputation INT
-                )
-            """))
-            
-            conn.execute(sa.text("""
-                IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='Posts' AND xtype='U')
-                CREATE TABLE dbo.Posts (
-                    Id INT PRIMARY KEY,
-                    PostTypeId INT,
-                    OwnerUserId INT,
-                    CreationDate DATETIME2,
-                    Title NVARCHAR(250),
-                    Body NTEXT
-                )
-            """))
-            
-            conn.execute(sa.text("""
-                IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='Comments' AND xtype='U')
-                CREATE TABLE dbo.Comments (
-                    Id INT PRIMARY KEY,
-                    PostId INT,
-                    UserId INT,
-                    CreationDate DATETIME2,
-                    Text NVARCHAR(MAX)
-                )
-            """))
-            
-            # Insert sample data if not exists
-            try:
-                conn.execute(sa.text("""
-                    IF NOT EXISTS (SELECT 1 FROM dbo.Users WHERE Id = 1)
-                    INSERT INTO dbo.Users (Id, DisplayName, CreationDate, Reputation) VALUES
-                    (1, 'TestUser1', '2023-01-01T10:00:00', 100),
-                    (2, 'TestUser2', '2023-01-02T11:00:00', 200),
-                    (3, 'TestUser3', '2023-01-03T12:00:00', 300)
-                """))
-                
-                conn.execute(sa.text("""
-                    IF NOT EXISTS (SELECT 1 FROM dbo.Posts WHERE Id = 1)
-                    INSERT INTO dbo.Posts (Id, PostTypeId, OwnerUserId, CreationDate, Title, Body) VALUES
-                    (1, 1, 1, '2023-01-01T15:00:00', 'Test Question 1', 'This is a test question'),
-                    (2, 2, 2, '2023-01-02T16:00:00', 'Test Answer 1', 'This is a test answer'),
-                    (3, 1, 3, '2023-01-03T17:00:00', 'Test Question 2', 'Another test question')
-                """))
-                
-                conn.execute(sa.text("""
-                    IF NOT EXISTS (SELECT 1 FROM dbo.Comments WHERE Id = 1)
-                    INSERT INTO dbo.Comments (Id, PostId, UserId, CreationDate, Text) VALUES
-                    (1, 1, 2, '2023-01-01T18:00:00', 'Great question!'),
-                    (2, 1, 3, '2023-01-01T19:00:00', 'I agree with the above'),
-                    (3, 2, 1, '2023-01-02T20:00:00', 'Thanks for the answer')
-                """))
-                
-                conn.commit()
+                with engine.connect() as conn:
+                    # Create test tables if they don't exist
+                    conn.execute(sa.text("""
+                        IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='Users' AND xtype='U')
+                        CREATE TABLE dbo.Users (
+                            Id INT PRIMARY KEY,
+                            DisplayName NVARCHAR(100),
+                            CreationDate DATETIME2,
+                            Reputation INT
+                        )
+                    """))
+                    
+                    conn.execute(sa.text("""
+                        IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='Posts' AND xtype='U')
+                        CREATE TABLE dbo.Posts (
+                            Id INT PRIMARY KEY,
+                            PostTypeId INT,
+                            OwnerUserId INT,
+                            CreationDate DATETIME2,
+                            Title NVARCHAR(250),
+                            Body NTEXT
+                        )
+                    """))
+                    
+                    conn.execute(sa.text("""
+                        IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='Comments' AND xtype='U')
+                        CREATE TABLE dbo.Comments (
+                            Id INT PRIMARY KEY,
+                            PostId INT,
+                            UserId INT,
+                            CreationDate DATETIME2,
+                            Text NVARCHAR(MAX)
+                        )
+                    """))
+                    
+                    # Insert sample data if not exists
+                    conn.execute(sa.text("""
+                        IF NOT EXISTS (SELECT 1 FROM dbo.Users WHERE Id = 1)
+                        INSERT INTO dbo.Users (Id, DisplayName, CreationDate, Reputation) VALUES
+                        (1, 'TestUser1', '2023-01-01T10:00:00', 100),
+                        (2, 'TestUser2', '2023-01-02T11:00:00', 200),
+                        (3, 'TestUser3', '2023-01-03T12:00:00', 300)
+                    """))
+                    
+                    conn.execute(sa.text("""
+                        IF NOT EXISTS (SELECT 1 FROM dbo.Posts WHERE Id = 1)
+                        INSERT INTO dbo.Posts (Id, PostTypeId, OwnerUserId, CreationDate, Title, Body) VALUES
+                        (1, 1, 1, '2023-01-01T15:00:00', 'Test Question 1', 'This is a test question'),
+                        (2, 2, 2, '2023-01-02T16:00:00', 'Test Answer 1', 'This is a test answer'),
+                        (3, 1, 3, '2023-01-03T17:00:00', 'Test Question 2', 'Another test question')
+                    """))
+                    
+                    conn.execute(sa.text("""
+                        IF NOT EXISTS (SELECT 1 FROM dbo.Comments WHERE Id = 1)
+                        INSERT INTO dbo.Comments (Id, PostId, UserId, CreationDate, Text) VALUES
+                        (1, 1, 2, '2023-01-01T18:00:00', 'Great question!'),
+                        (2, 1, 3, '2023-01-01T19:00:00', 'I agree with the above'),
+                        (3, 2, 1, '2023-01-02T20:00:00', 'Thanks for the answer')
+                    """))
+                    
+                    conn.commit()
+                break
             except Exception as e:
-                # Data might already exist, continue
-                pass
+                if attempt == 2:  # Last attempt
+                    raise
+                time.sleep(3)
                 
     except Exception as e:
         # If connection fails, skip integration tests
@@ -119,30 +105,31 @@ def test_source_db():
 @pytest.fixture(scope="session") 
 def test_dest_db():
     """Use existing destination database."""
-    master_connection_string = os.getenv(
+    # Use master database for simplicity
+    connection_string = os.getenv(
         'TEST_DEST_CONNECTION_STRING',
-        "mssql+pyodbc://sa:Strong!Passw0rd@mssql-dest:1433/TargetDB"
+        "mssql+pyodbc://sa:Strong!Passw0rd@mssql-dest:1433/master"
         "?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes&Encrypt=yes"
-    ).replace("/TargetDB", "/master")
+    )
     
-    connection_string = master_connection_string.replace("/master", "/TargetDB")
-    
-    # Try to connect and setup destination database
+    # Try to connect and verify destination is available
     try:
-        # First connect to master to create database
-        master_engine = sa.create_engine(master_connection_string)
-        with master_engine.connect() as conn:
-            conn.autocommit = True
-            try:
-                conn.execute(sa.text("CREATE DATABASE TargetDB"))
-            except:
-                # Database might already exist
-                pass
+        # Wait a bit for SQL Server to be ready
+        time.sleep(5)
         
-        # Verify destination is available
         engine = sa.create_engine(connection_string)
-        with engine.connect() as conn:
-            conn.execute(sa.text("SELECT 1"))
+        
+        # Retry connection a few times
+        for attempt in range(3):
+            try:
+                with engine.connect() as conn:
+                    conn.execute(sa.text("SELECT 1"))
+                break
+            except Exception as e:
+                if attempt == 2:  # Last attempt
+                    raise
+                time.sleep(3)
+                
     except Exception as e:
         pytest.skip(f"Cannot connect to test destination database: {e}")
     

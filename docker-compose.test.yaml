@@ -54,8 +54,8 @@ services:
       - dlt-test-network
     environment:
       - PYTHONPATH=/app:/tests
-      - TEST_SOURCE_CONNECTION_STRING=mssql+pyodbc://sa:Strong!Passw0rd@mssql-source:1433/StackOverflowMini?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes&Encrypt=yes
-      - TEST_DEST_CONNECTION_STRING=mssql+pyodbc://sa:Strong!Passw0rd@mssql-dest:1433/TargetDB?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes&Encrypt=yes
+      - TEST_SOURCE_CONNECTION_STRING=mssql+pyodbc://sa:Strong!Passw0rd@mssql-source:1433/master?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes&Encrypt=yes
+      - TEST_DEST_CONNECTION_STRING=mssql+pyodbc://sa:Strong!Passw0rd@mssql-dest:1433/master?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes&Encrypt=yes
     command: pytest /tests -v --tb=short
     depends_on:
       mssql-source-test:
