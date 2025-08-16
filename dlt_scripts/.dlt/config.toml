@@ -11,6 +11,8 @@ tz="UTC"
 [destination.mssql]
 create_indexes=false
 has_case_sensitive_identifiers=false
+autocommit=true
+isolation_level="READ_COMMITTED"
 
 [normalize.parquet_normalizer]
 add_dlt_load_id=true
