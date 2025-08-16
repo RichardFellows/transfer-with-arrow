@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+"""
+Enhanced Table Processor with Dynamic Schema Analysis
+Automatically analyzes source schema and applies optimal column hints to prevent precision loss
+"""
 
 import dlt
 from dlt.sources.sql_database import sql_database
@@ -12,22 +16,29 @@ from .config_models import (
 from ..utils.logging_setup import (
     log_table_processing_start, log_table_processing_complete, get_logger
 )
+from ..utils.schema_analyzer import SchemaAnalyzer
 
 
 class TableProcessor:
-    """Handles processing of individual tables with advanced configuration support."""
+    """Enhanced table processor with automatic schema analysis and optimization"""
     
-    def __init__(self, config: ConfigurationModel, logger: logging.Logger):
+    def __init__(self, config: ConfigurationModel, logger: logging.Logger, auto_optimize: bool = True):
         """
-        Initialize the table processor.
+        Initialize the enhanced table processor.
         
         Args:
             config: Pipeline configuration
             logger: Logger instance
+            auto_optimize: Whether to automatically apply schema optimizations
         """
         self.config = config
         self.logger = logger
         self.table_logger = get_logger("table_processor")
+        self.auto_optimize = auto_optimize
+        
+        # Initialize schema analyzer
+        source_conn = self.config.connections["source"].connection_string
+        self.schema_analyzer = SchemaAnalyzer(source_conn, self.table_logger)
         
         # Cache DLT pipeline instance
         self._pipeline = None
@@ -48,68 +59,106 @@ class TableProcessor:
     
     def process_table(self, table_name: str, table_config: TableConfig) -> Any:
         """
-        Process a single table according to its configuration.
-        
-        Args:
-            table_name: Name of the table in configuration
-            table_config: Table-specific configuration
-            
-        Returns:
-            DLT load information
-        """
-        log_table_processing_start(self.table_logger, table_name, table_config)
-        
-        start_time = datetime.now()
-        
-        try:
-            # Create source configuration
-            source = self._create_table_source(table_name, table_config)
-            
-            # Apply incremental loading if configured
-            if table_config.incremental.enabled:
-                source = self._apply_incremental_loading(source, table_config)
-            
-            # Run the pipeline for this table
-            load_info = self.pipeline.run(
-                source,
-                write_disposition=table_config.disposition.value,
-                loader_file_format=self.config.pipeline.loader_file_format
-            )
-            
-            end_time = datetime.now()
-            duration = (end_time - start_time).total_seconds()
-            
-            log_table_processing_complete(self.table_logger, table_name, duration)
-            
-            return load_info
-            
-        except Exception as e:
-            end_time = datetime.now()
-            duration = (end_time - start_time).total_seconds()
-            
-            self.table_logger.error(f"Failed to process table {table_name}: {e}")
-            raise
-    
-    def _create_table_source(self, table_name: str, table_config: TableConfig) -> Any:
-        """
-        Create a DLT source for the specified table.
+        Process a single table with automatic schema optimization
         
         Args:
             table_name: Name of the table in configuration
             table_config: Table configuration
             
         Returns:
-            DLT source configured for the table
+            Processing result from DLT pipeline
+        """
+        start_time = datetime.now()
+        log_table_processing_start(self.table_logger, table_name, table_config)
+        
+        try:
+            # Step 1: Analyze source schema if auto-optimization is enabled
+            if self.auto_optimize:
+                self.table_logger.info(f"🔍 Analyzing source schema for optimization...")
+                schema_hints = self._analyze_and_optimize_schema(table_name, table_config)
+            else:
+                schema_hints = {}
+            
+            # Step 2: Create optimized table source
+            source = self._create_optimized_table_source(table_name, table_config, schema_hints)
+            
+            # Step 3: Run the pipeline
+            load_info = self.pipeline.run(source)
+            
+            # Step 4: Log completion
+            duration = (datetime.now() - start_time).total_seconds()
+            log_table_processing_complete(self.table_logger, table_name, duration)
+            
+            return load_info
+            
+        except Exception as e:
+            self.table_logger.error(f"Failed to process table {table_name}: {e}")
+            raise
+    
+    def _analyze_and_optimize_schema(self, table_name: str, table_config: TableConfig) -> Dict[str, Dict[str, Any]]:
+        """
+        Analyze source schema and generate optimization hints
+        
+        Args:
+            table_name: Table name
+            table_config: Table configuration
+            
+        Returns:
+            Dictionary of column hints for optimization
+        """
+        try:
+            # Extract schema and table name from source_table
+            if "." in table_config.source_table:
+                schema_name, source_table_name = table_config.source_table.split(".", 1)
+            else:
+                schema_name = "dbo"
+                source_table_name = table_config.source_table
+            
+            # Analyze schema
+            column_hints = self.schema_analyzer.analyze_table_schema(source_table_name, schema_name)
+            
+            if column_hints:
+                self.table_logger.info(f"🎯 Generated {len(column_hints)} optimization hints for {table_name}")
+                
+                # Log specific optimizations
+                for col_name, hints in column_hints.items():
+                    if hints.get("data_type") == "decimal":
+                        precision = hints.get("precision", "?")
+                        scale = hints.get("scale", "?")
+                        self.table_logger.info(f"  📊 {col_name} → DECIMAL({precision},{scale})")
+                    elif hints.get("data_type") == "text":
+                        self.table_logger.info(f"  📝 {col_name} → TEXT (large text)")
+                    elif hints.get("data_type") in ["bool", "double", "timestamp"]:
+                        self.table_logger.info(f"  🔧 {col_name} → {hints.get('data_type').upper()}")
+            else:
+                self.table_logger.info(f"ℹ️ No schema optimizations needed for {table_name}")
+            
+            return column_hints
+            
+        except Exception as e:
+            self.table_logger.warning(f"⚠️ Schema analysis failed for {table_name}: {e}")
+            self.table_logger.info("📋 Continuing without schema optimization...")
+            return {}
+    
+    def _create_optimized_table_source(self, table_name: str, table_config: TableConfig, schema_hints: Dict[str, Dict[str, Any]]) -> Any:
+        """
+        Create an optimized DLT source with schema hints applied
+        
+        Args:
+            table_name: Table name
+            table_config: Table configuration
+            schema_hints: Generated schema optimization hints
+            
+        Returns:
+            Optimized DLT source
         """
         source_conn = self.config.connections["source"].connection_string
         
         # Determine what to select from source
         if table_config.custom_sql:
-            # Use custom SQL query
             table_name_or_query = table_config.custom_sql
             self.table_logger.info(f"Using custom SQL for {table_name}")
         else:
-            # Use table name with optional WHERE clause
             table_name_or_query = table_config.source_table
             if table_config.where_clause:
                 table_name_or_query = f"SELECT * FROM {table_config.source_table} WHERE {table_config.where_clause}"
@@ -126,176 +175,92 @@ class TableProcessor:
         
         # Configure resource for this specific table
         if table_config.custom_sql:
-            # For custom SQL, we need to handle it differently
-            # This is a simplified approach - in practice, you might need more sophisticated handling
-            source = source.with_resources(table_config.destination_table)
+            resource = source.with_resources(table_config.destination_table)
+            resource_obj = resource.resources[table_config.destination_table]
         else:
             # Extract just the table name for resource configuration
-            if table_config.where_clause:
-                # For tables with WHERE clauses, we need to create a custom resource
-                source = source.with_resources(table_config.source_table.split('.')[-1])
-            else:
-                source = source.with_resources(table_config.source_table.split('.')[-1])
+            source_table_name = table_config.source_table.split(".")[-1]
+            resource = source.with_resources(source_table_name)
+            resource_obj = resource.resources[source_table_name]
         
-        return source
+        # Apply schema optimization hints
+        if schema_hints:
+            self.table_logger.info(f"🔧 Applying {len(schema_hints)} schema optimizations...")
+            resource_obj = resource_obj.apply_hints(columns=schema_hints)
+        
+        # Apply table-level configuration
+        resource_obj = resource_obj.apply_hints(
+            table_name=table_config.destination_table,
+            write_disposition=table_config.disposition.value
+        )
+        
+        # Apply incremental loading configuration if enabled
+        if table_config.incremental and table_config.incremental.enabled:
+            resource_obj = self._apply_incremental_loading(table_name, table_config, resource_obj)
+        
+        # Apply primary key if specified
+        if hasattr(table_config, 'primary_key') and table_config.primary_key:
+            resource_obj = resource_obj.apply_hints(primary_key=table_config.primary_key)
+        
+        return resource_obj
     
-    def _apply_incremental_loading(self, source: Any, table_config: TableConfig) -> Any:
-        """
-        Apply incremental loading configuration to the source.
-        
-        Args:
-            source: DLT source
-            table_config: Table configuration
-            
-        Returns:
-            Source with incremental loading applied
-        """
-        if not table_config.incremental.enabled:
-            return source
-        
+    def _apply_incremental_loading(self, table_name: str, table_config: TableConfig, resource: Any) -> Any:
+        """Apply incremental loading configuration to resource"""
         incremental_config = table_config.incremental
         
-        self.table_logger.info(
-            f"Configuring incremental loading: "
-            f"strategy={incremental_config.strategy}, "
-            f"column={incremental_config.watermark_column}, "
-            f"initial_value={incremental_config.initial_value}"
-        )
-        
-        # Convert initial value to appropriate type based on strategy
-        initial_value = self._convert_initial_value(
-            incremental_config.initial_value,
-            incremental_config.strategy
-        )
-        
-        # Get the resource name (destination table name or source table name)
-        resource_name = table_config.destination_table
-        if not resource_name:
-            resource_name = table_config.source_table.split('.')[-1]
-        
-        # Apply incremental configuration
-        try:
-            # Get the specific resource from the source
-            if hasattr(source, resource_name):
-                resource = getattr(source, resource_name)
-            else:
-                # Try to get from resources dictionary
-                if hasattr(source, 'resources') and resource_name in source.resources:
-                    resource = source.resources[resource_name]
-                else:
-                    # Fallback: try with source table name
-                    source_table_name = table_config.source_table.split('.')[-1]
-                    if hasattr(source, source_table_name):
-                        resource = getattr(source, source_table_name)
-                    else:
-                        raise ValueError(f"Cannot find resource '{resource_name}' or '{source_table_name}' in source")
-            
-            # Apply incremental hints
-            resource.apply_hints(
-                incremental=dlt.sources.incremental(
-                    incremental_config.watermark_column,
-                    initial_value=initial_value
+        if incremental_config.strategy == IncrementalStrategy.TIMESTAMP:
+            if incremental_config.watermark_column and incremental_config.initial_value:
+                initial_value = self._convert_initial_value(incremental_config.initial_value)
+                
+                resource = resource.apply_hints(
+                    incremental=dlt.sources.incremental(
+                        incremental_config.watermark_column,
+                        initial_value=initial_value
+                    )
                 )
-            )
-            
-            self.table_logger.info(f"Incremental loading configured for resource: {resource_name}")
-            
-        except Exception as e:
-            self.table_logger.error(f"Failed to configure incremental loading: {e}")
-            # Continue without incremental loading rather than failing
-            self.table_logger.warning("Proceeding without incremental loading")
+                
+                self.table_logger.info(f"Applied incremental loading: {incremental_config.watermark_column} >= {initial_value}")
+            else:
+                self.table_logger.warning(f"Incremental loading enabled but missing watermark_column or initial_value")
         
-        return source
+        return resource
     
-    def _convert_initial_value(self, initial_value: Any, strategy: IncrementalStrategy) -> Any:
-        """
-        Convert initial value to appropriate type based on incremental strategy.
-        
-        Args:
-            initial_value: Initial value from configuration
-            strategy: Incremental strategy
-            
-        Returns:
-            Converted initial value
-        """
-        if initial_value is None:
-            return None
-        
-        if strategy == IncrementalStrategy.TIMESTAMP:
-            if isinstance(initial_value, str):
-                try:
-                    # Try to parse as ISO format datetime
-                    return datetime.fromisoformat(initial_value.replace('Z', '+00:00'))
-                except ValueError:
-                    # If that fails, try other common formats
-                    from dateutil.parser import parse
-                    return parse(initial_value)
-            elif isinstance(initial_value, datetime):
+    def _convert_initial_value(self, initial_value: str) -> Any:
+        """Convert string initial value to appropriate type"""
+        if isinstance(initial_value, str):
+            try:
+                return datetime.fromisoformat(initial_value.replace('Z', '+00:00'))
+            except ValueError:
                 return initial_value
-            else:
-                raise ValueError(f"Invalid timestamp initial value: {initial_value}")
-        
-        elif strategy == IncrementalStrategy.SEQUENCE:
-            if isinstance(initial_value, (int, float)):
-                return initial_value
-            elif isinstance(initial_value, str):
-                try:
-                    # Try to convert to integer first, then float
-                    if '.' in initial_value:
-                        return float(initial_value)
-                    else:
-                        return int(initial_value)
-                except ValueError:
-                    raise ValueError(f"Invalid sequence initial value: {initial_value}")
-            else:
-                raise ValueError(f"Invalid sequence initial value: {initial_value}")
-        
-        else:  # CUSTOM or other strategies
-            # For custom strategies, return as-is and let DLT handle it
-            return initial_value
+        return initial_value
     
     def get_table_schema_info(self, table_name: str, table_config: TableConfig) -> Dict[str, Any]:
-        """
-        Get schema information for a table.
-        
-        Args:
-            table_name: Name of the table
-            table_config: Table configuration
-            
-        Returns:
-            Schema information dictionary
-        """
+        """Get detailed schema information for a table"""
         try:
-            source = self._create_table_source(table_name, table_config)
+            if "." in table_config.source_table:
+                schema_name, source_table_name = table_config.source_table.split(".", 1)
+            else:
+                schema_name = "dbo"
+                source_table_name = table_config.source_table
             
-            # Extract schema information
-            schema_info = {
-                "table_name": table_name,
-                "source_table": table_config.source_table,
-                "destination_table": table_config.destination_table,
-                "disposition": table_config.disposition.value,
-                "incremental_enabled": table_config.incremental.enabled,
-                "primary_key": table_config.primary_key,
-                "has_where_clause": bool(table_config.where_clause),
-                "has_custom_sql": bool(table_config.custom_sql)
-            }
-            
-            if table_config.incremental.enabled:
-                schema_info.update({
-                    "incremental_strategy": table_config.incremental.strategy.value,
-                    "watermark_column": table_config.incremental.watermark_column,
-                    "initial_value": table_config.incremental.initial_value
-                })
-            
-            return schema_info
-            
+            return self.schema_analyzer.get_schema_summary(source_table_name, schema_name)
         except Exception as e:
             self.table_logger.error(f"Failed to get schema info for {table_name}: {e}")
-            return {
-                "table_name": table_name,
-                "error": str(e)
-            }
+            return {}
     
+    def generate_optimized_config(self, table_name: str, schema: str = "dbo") -> Dict[str, Any]:
+        """
+        Generate an optimized configuration for a table
+        
+        Args:
+            table_name: Table name to analyze
+            schema: Database schema
+            
+        Returns:
+            Complete optimized table configuration
+        """
+        return self.schema_analyzer.generate_config_section(table_name, schema)
+
     def estimate_table_size(self, table_name: str, table_config: TableConfig) -> Optional[int]:
         """
         Estimate the number of rows in a table.
@@ -329,3 +294,19 @@ class TableProcessor:
         except Exception as e:
             self.table_logger.warning(f"Failed to estimate size for {table_name}: {e}")
             return None
+
+
+# Convenience function for direct usage  
+def create_table_processor(config: ConfigurationModel, logger: logging.Logger, auto_optimize: bool = True) -> TableProcessor:
+    """
+    Create a table processor with schema optimization
+    
+    Args:
+        config: Pipeline configuration
+        logger: Logger instance
+        auto_optimize: Whether to enable automatic schema optimization
+        
+    Returns:
+        Table processor instance
+    """
+    return TableProcessor(config, logger, auto_optimize)

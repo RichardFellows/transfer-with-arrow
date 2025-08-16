@@ -68,7 +68,8 @@ class TestTableProcessorCustomSQL:
         
         with patch('src.utils.logging_setup.get_logger') as mock_get_logger, \
              patch('src.pipeline.table_processor.sql_database') as mock_sql_db, \
-             patch('src.pipeline.table_processor.dlt') as mock_dlt:
+             patch('src.pipeline.table_processor.dlt') as mock_dlt, \
+             patch('src.pipeline.table_processor.SchemaAnalyzer') as mock_schema_analyzer:
             
             # Setup logger mock BEFORE creating processor
             mock_table_logger = Mock()
@@ -83,7 +84,7 @@ class TestTableProcessorCustomSQL:
             mock_dlt.pipeline.return_value = mock_pipeline
             mock_dlt.destinations.sqlalchemy.return_value = "mock_dest"
             
-            processor = TableProcessor(basic_config, mock_logger)
+            processor = TableProcessor(basic_config, mock_logger, auto_optimize=False)
             
             # Replace the table_logger with our mock after processor creation
             processor.table_logger = mock_table_logger
@@ -135,7 +136,7 @@ class TestTableProcessorIncrementalLoading:
             mock_dlt.destinations.sqlalchemy.return_value = "mock_dest"
             mock_dlt.sources.incremental.return_value = "mock_incremental"
             
-            processor = TableProcessor(basic_config, mock_logger)
+            processor = TableProcessor(basic_config, mock_logger, auto_optimize=False)
             
             # This should trigger incremental loading path (line 70)
             with patch.object(processor, '_apply_incremental_loading') as mock_apply:
@@ -168,7 +169,7 @@ class TestTableProcessorIncrementalLoading:
             mock_resource = Mock()
             mock_source.testtable = mock_resource  # lowercase version
             
-            processor = TableProcessor(basic_config, mock_logger)
+            processor = TableProcessor(basic_config, mock_logger, auto_optimize=False)
             
             # Should fail initially - incremental loading not fully implemented
             result = processor._apply_incremental_loading(mock_source, table_config)
@@ -196,7 +197,7 @@ class TestTableProcessorIncrementalLoading:
             mock_table_logger = Mock()
             mock_get_logger.return_value = mock_table_logger
             
-            processor = TableProcessor(basic_config, mock_logger)
+            processor = TableProcessor(basic_config, mock_logger, auto_optimize=False)
             
             # Replace the table_logger with our mock after processor creation
             processor.table_logger = mock_table_logger
@@ -237,7 +238,7 @@ class TestTableProcessorIncrementalLoading:
             mock_table_logger = Mock()
             mock_get_logger.return_value = mock_table_logger
             
-            processor = TableProcessor(basic_config, mock_logger)
+            processor = TableProcessor(basic_config, mock_logger, auto_optimize=False)
             
             # Replace the table_logger with our mock after processor creation
             processor.table_logger = mock_table_logger
@@ -269,7 +270,7 @@ class TestTableProcessorInitialValueConversion:
     
     def test_convert_timestamp_initial_value_iso_format(self, basic_config, mock_logger):
         """Test converting ISO format timestamp initial value."""
-        processor = TableProcessor(basic_config, mock_logger)
+        processor = TableProcessor(basic_config, mock_logger, auto_optimize=False)
         
         # Should convert ISO string to datetime (lines 227-228)
         result = processor._convert_initial_value(
@@ -280,7 +281,7 @@ class TestTableProcessorInitialValueConversion:
     
     def test_convert_timestamp_initial_value_other_format(self, basic_config, mock_logger):
         """Test converting non-ISO timestamp with dateutil - lines 231-232."""
-        processor = TableProcessor(basic_config, mock_logger)
+        processor = TableProcessor(basic_config, mock_logger, auto_optimize=False)
         
         with patch('dateutil.parser.parse') as mock_parse:
             mock_parse.return_value = datetime(2023, 1, 1)
@@ -294,7 +295,7 @@ class TestTableProcessorInitialValueConversion:
     
     def test_convert_timestamp_invalid_value(self, basic_config, mock_logger):
         """Test invalid timestamp value - error line 236."""
-        processor = TableProcessor(basic_config, mock_logger)
+        processor = TableProcessor(basic_config, mock_logger, auto_optimize=False)
         
         # Should raise ValueError for invalid timestamp (line 236)
         with pytest.raises(ValueError, match="Invalid timestamp initial value"):
@@ -305,7 +306,7 @@ class TestTableProcessorInitialValueConversion:
     
     def test_convert_sequence_initial_value_string_int(self, basic_config, mock_logger):
         """Test converting string integer for sequence - lines 246-247."""
-        processor = TableProcessor(basic_config, mock_logger)
+        processor = TableProcessor(basic_config, mock_logger, auto_optimize=False)
         
         # Should convert string to int (lines 246-247)
         result = processor._convert_initial_value(
@@ -317,7 +318,7 @@ class TestTableProcessorInitialValueConversion:
     
     def test_convert_sequence_initial_value_string_float(self, basic_config, mock_logger):
         """Test converting string float for sequence - lines 244-245."""
-        processor = TableProcessor(basic_config, mock_logger)
+        processor = TableProcessor(basic_config, mock_logger, auto_optimize=False)
         
         # Should convert string to float (lines 244-245)
         result = processor._convert_initial_value(
@@ -329,7 +330,7 @@ class TestTableProcessorInitialValueConversion:
     
     def test_convert_sequence_invalid_string(self, basic_config, mock_logger):
         """Test invalid sequence string value - error line 249."""
-        processor = TableProcessor(basic_config, mock_logger)
+        processor = TableProcessor(basic_config, mock_logger, auto_optimize=False)
         
         # Should raise ValueError for invalid sequence string (line 249)
         with pytest.raises(ValueError, match="Invalid sequence initial value"):
@@ -340,7 +341,7 @@ class TestTableProcessorInitialValueConversion:
     
     def test_convert_sequence_invalid_type(self, basic_config, mock_logger):
         """Test invalid sequence value type - error line 251."""
-        processor = TableProcessor(basic_config, mock_logger)
+        processor = TableProcessor(basic_config, mock_logger, auto_optimize=False)
         
         # Should raise ValueError for invalid sequence type (line 251)
         with pytest.raises(ValueError, match="Invalid sequence initial value"):
@@ -351,7 +352,7 @@ class TestTableProcessorInitialValueConversion:
     
     def test_convert_custom_initial_value(self, basic_config, mock_logger):
         """Test custom strategy initial value - line 255."""
-        processor = TableProcessor(basic_config, mock_logger)
+        processor = TableProcessor(basic_config, mock_logger, auto_optimize=False)
         
         # Should return value as-is for custom strategy (line 255)
         custom_value = {"custom": "data"}
@@ -379,7 +380,7 @@ class TestTableProcessorSchemaInfo:
         with patch.object(TableProcessor, '_create_table_source') as mock_create:
             mock_create.return_value = Mock()
             
-            processor = TableProcessor(basic_config, mock_logger)
+            processor = TableProcessor(basic_config, mock_logger, auto_optimize=False)
             
             # Should return schema info dict (lines 272-289)
             result = processor.get_table_schema_info("TestTable", table_config)
@@ -407,7 +408,7 @@ class TestTableProcessorSchemaInfo:
         with patch.object(TableProcessor, '_create_table_source') as mock_create:
             mock_create.return_value = Mock()
             
-            processor = TableProcessor(basic_config, mock_logger)
+            processor = TableProcessor(basic_config, mock_logger, auto_optimize=False)
             
             # Should include incremental info (lines 283-288)
             result = processor.get_table_schema_info("TestTable", table_config)
@@ -427,7 +428,7 @@ class TestTableProcessorSchemaInfo:
         with patch.object(TableProcessor, '_create_table_source') as mock_create:
             mock_create.side_effect = Exception("Schema error")
             
-            processor = TableProcessor(basic_config, mock_logger)
+            processor = TableProcessor(basic_config, mock_logger, auto_optimize=False)
             
             # Should handle error and return error dict (lines 292-297)
             result = processor.get_table_schema_info("TestTable", table_config)
@@ -471,7 +472,7 @@ class TestTableProcessorSizeEstimation:
             mock_table_logger = Mock()
             mock_get_logger.return_value = mock_table_logger
             
-            processor = TableProcessor(basic_config, mock_logger)
+            processor = TableProcessor(basic_config, mock_logger, auto_optimize=False)
             
             # Replace the table_logger with our mock after processor creation
             processor.table_logger = mock_table_logger
@@ -516,7 +517,7 @@ class TestTableProcessorSizeEstimation:
             mock_table_logger = Mock()
             mock_get_logger.return_value = mock_table_logger
             
-            processor = TableProcessor(basic_config, mock_logger)
+            processor = TableProcessor(basic_config, mock_logger, auto_optimize=False)
             
             # Replace the table_logger with our mock after processor creation
             processor.table_logger = mock_table_logger
@@ -546,7 +547,7 @@ class TestTableProcessorSizeEstimation:
             mock_table_logger = Mock()
             mock_get_logger.return_value = mock_table_logger
             
-            processor = TableProcessor(basic_config, mock_logger)
+            processor = TableProcessor(basic_config, mock_logger, auto_optimize=False)
             
             # Replace the table_logger with our mock after processor creation
             processor.table_logger = mock_table_logger
@@ -572,7 +573,8 @@ class TestTableProcessorEdgeCases:
         
         with patch('src.utils.logging_setup.get_logger') as mock_get_logger, \
              patch('src.pipeline.table_processor.sql_database') as mock_sql_db, \
-             patch('src.pipeline.table_processor.dlt') as mock_dlt:
+             patch('src.pipeline.table_processor.dlt') as mock_dlt, \
+             patch('src.pipeline.table_processor.SchemaAnalyzer') as mock_schema_analyzer:
             
             # Setup logger mock BEFORE creating processor
             mock_table_logger = Mock()
@@ -586,7 +588,7 @@ class TestTableProcessorEdgeCases:
             mock_dlt.pipeline.return_value = mock_pipeline
             mock_dlt.destinations.sqlalchemy.return_value = "mock_dest"
             
-            processor = TableProcessor(basic_config, mock_logger)
+            processor = TableProcessor(basic_config, mock_logger, auto_optimize=False)
             
             # Replace the table_logger with our mock after processor creation
             processor.table_logger = mock_table_logger
@@ -599,7 +601,7 @@ class TestTableProcessorEdgeCases:
     
     def test_convert_initial_value_none(self, basic_config, mock_logger):
         """Test None initial value - line 222."""
-        processor = TableProcessor(basic_config, mock_logger)
+        processor = TableProcessor(basic_config, mock_logger, auto_optimize=False)
         
         # Should return None immediately (line 222)
         result = processor._convert_initial_value(None, IncrementalStrategy.TIMESTAMP)
@@ -607,7 +609,7 @@ class TestTableProcessorEdgeCases:
     
     def test_convert_timestamp_datetime_object(self, basic_config, mock_logger):
         """Test datetime object as initial value - lines 233-234."""
-        processor = TableProcessor(basic_config, mock_logger)
+        processor = TableProcessor(basic_config, mock_logger, auto_optimize=False)
         
         dt = datetime(2023, 1, 1, 12, 0, 0)
         

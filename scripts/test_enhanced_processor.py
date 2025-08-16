@@ -7,7 +7,7 @@ import sys
 import os
 sys.path.append('/app')
 
-from src.pipeline.enhanced_table_processor import EnhancedTableProcessor
+from src.pipeline.table_processor import TableProcessor
 from src.pipeline.config_models import (
     ConfigurationModel, TableConfig, ConnectionConfig, 
     PipelineConfig, IncrementalConfig, WriteDisposition
@@ -66,7 +66,7 @@ def test_enhanced_processor():
         
         # Initialize enhanced processor with auto-optimization
         print("\n🔧 Initializing Enhanced Table Processor (auto_optimize=True)")
-        processor = EnhancedTableProcessor(config, logger, auto_optimize=True)
+        processor = TableProcessor(config, logger, auto_optimize=True)
         
         # Test 1: Get schema information
         print("\n🔍 Test 1: Getting schema information")
@@ -113,7 +113,7 @@ def test_enhanced_processor():
         
         # Test 3: Test without auto-optimization for comparison
         print("\n🔄 Test 3: Comparing with auto_optimize=False")
-        processor_no_opt = EnhancedTableProcessor(config, logger, auto_optimize=False)
+        processor_no_opt = TableProcessor(config, logger, auto_optimize=False)
         
         print("  📋 Without auto-optimization: Schema analysis will be skipped")
         print("  ✅ With auto-optimization: 51 optimizations applied automatically")

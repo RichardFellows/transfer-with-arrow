@@ -42,9 +42,9 @@ if data_type == "money":
     }
 ```
 
-### 2. EnhancedTableProcessor Class (`dlt_scripts/src/pipeline/enhanced_table_processor.py`)
+### 2. TableProcessor Class (`dlt_scripts/src/pipeline/table_processor.py`)
 
-**Purpose**: Enhanced table processor with automatic schema optimization
+**Purpose**: Enhanced table processor with automatic schema optimization (replaces original TableProcessor)
 
 **Key Features**:
 - ✅ **Backward Compatible**: Drop-in replacement for existing TableProcessor
@@ -56,7 +56,7 @@ if data_type == "money":
 **Usage**:
 ```python
 # Initialize with auto-optimization enabled
-processor = EnhancedTableProcessor(config, logger, auto_optimize=True)
+processor = TableProcessor(config, logger, auto_optimize=True)
 
 # Process table - schema analysis happens automatically
 load_info = processor.process_table("ProductionTestTable", table_config)
@@ -87,10 +87,10 @@ load_info = processor.process_table("ProductionTestTable", table_config)
 ### Step 1: Initialize Enhanced Processor
 
 ```python
-from src.pipeline.enhanced_table_processor import EnhancedTableProcessor
+from src.pipeline.table_processor import TableProcessor
 
 # Create enhanced processor with auto-optimization
-processor = EnhancedTableProcessor(
+processor = TableProcessor(
     config=your_config,
     logger=your_logger, 
     auto_optimize=True  # Enable automatic schema optimization
@@ -203,7 +203,7 @@ tables:
 ### Advanced Configuration
 ```python
 # For custom schema analysis behavior
-processor = EnhancedTableProcessor(
+processor = TableProcessor(
     config=config,
     logger=logger,
     auto_optimize=True  # Enable/disable automatic optimization
@@ -219,13 +219,11 @@ optimized_config = processor.generate_optimized_config("NewTable", "dbo")
 
 1. **Replace TableProcessor**:
    ```python
-   # Old
-   from src.pipeline.table_processor import TableProcessor
-   processor = TableProcessor(config, logger)
+   # Old (original TableProcessor without optimization)
+   processor = TableProcessor(config, logger, auto_optimize=False)
    
-   # New  
-   from src.pipeline.enhanced_table_processor import EnhancedTableProcessor
-   processor = EnhancedTableProcessor(config, logger, auto_optimize=True)
+   # New (enhanced TableProcessor with automatic optimization)  
+   processor = TableProcessor(config, logger, auto_optimize=True)
    ```
 
 2. **Clean Schema Migration**:
@@ -253,9 +251,9 @@ optimized_config = processor.generate_optimized_config("NewTable", "dbo")
 
 ### For New Pipelines
 
-1. **Use EnhancedTableProcessor from start**
-2. **Enable auto_optimize=True**
-3. **No additional configuration required**
+1. **Use TableProcessor with auto_optimize=True from start**
+2. **No additional configuration required**
+3. **Automatic schema optimization enabled by default**
 
 ## Performance Benchmarks
 
@@ -313,7 +311,7 @@ Look for these log messages:
 If automatic optimization fails, the processor falls back to standard behavior:
 ```python
 # Automatic optimization fails gracefully
-processor = EnhancedTableProcessor(config, logger, auto_optimize=False)
+processor = TableProcessor(config, logger, auto_optimize=False)
 ```
 
 ## Future Enhancements

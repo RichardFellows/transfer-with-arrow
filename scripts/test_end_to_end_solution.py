@@ -9,7 +9,7 @@ import sys
 import os
 sys.path.append('/app')
 
-from src.pipeline.enhanced_table_processor import EnhancedTableProcessor
+from src.pipeline.table_processor import TableProcessor
 from src.pipeline.config_models import (
     ConfigurationModel, TableConfig, ConnectionConfig, 
     PipelineConfig, IncrementalConfig, WriteDisposition
@@ -127,7 +127,7 @@ def test_end_to_end_pipeline():
         
         # Step 2: Initialize enhanced processor
         print("🚀 Step 2: Initializing Enhanced Table Processor")
-        processor = EnhancedTableProcessor(config, logger, auto_optimize=True)
+        processor = TableProcessor(config, logger, auto_optimize=True)
         
         # Step 3: Clean destination table for fresh test
         print("🧹 Step 3: Cleaning destination table for fresh test")
@@ -242,7 +242,7 @@ def test_production_table():
         
         config.tables["ProductionTestTable"] = large_table_config
         
-        processor = EnhancedTableProcessor(config, logger, auto_optimize=True)
+        processor = TableProcessor(config, logger, auto_optimize=True)
         
         # Clean destination
         dest_conn_str = config.connections["destination"].connection_string
