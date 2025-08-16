@@ -1,0 +1,125 @@
+# Enhanced Pipeline Configuration with MONEY Column Coercion
+# This configuration automatically coerces MONEY columns to DECIMAL(19,4) for consistency
+
+pipeline:
+  name: "stackoverflow_migration"
+  dataset_name: "stackoverflow_data"
+  chunk_size: 10000
+  backend: "pyarrow"
+  loader_file_format: "parquet"
+  reflection_level: "full_with_precision"
+  backend_kwargs:
+    tz: "UTC"
+  
+  # NEW: MONEY column coercion settings
+  money_coercion:
+    enabled: true
+    target_precision: 19
+    target_scale: 4
+    auto_detect: true  # Automatically detect MONEY columns
+    explicit_columns:  # Or specify columns explicitly
+      - "price1"
+      - "price2" 
+      - "price3"
+      - "price4"
+      - "price5"
+      - "moneyvalue"
+
+connections:
+  source:
+    connection_string: "${SOURCE_CONNECTION_STRING}"
+    schema: "dbo"
+    timeout: 30
+  destination:
+    connection_string: "${DEST_CONNECTION_STRING}"
+    schema: "stackoverflow_data"
+    timeout: 30
+
+tables:
+  # Enhanced table configuration with automatic MONEY handling
+  ProductionTestTable:
+    source_table: "dbo.ProductionTestTable"
+    destination_table: "production_test_table"
+    disposition: "replace"
+    incremental:
+      enabled: false
+    enabled: true
+    
+    # NEW: Column type overrides for consistent schema
+    column_hints:
+      # Force MONEY columns to consistent DECIMAL(19,4)
+      price1:
+        data_type: "decimal"
+        precision: 19
+        scale: 4
+      price2:
+        data_type: "decimal" 
+        precision: 19
+        scale: 4
+      price3:
+        data_type: "decimal"
+        precision: 19
+        scale: 4
+      price4:
+        data_type: "decimal"
+        precision: 19
+        scale: 4
+      price5:
+        data_type: "decimal"
+        precision: 19
+        scale: 4
+        
+      # You can add other problematic columns here
+      # example_money_column:
+      #   data_type: "decimal"
+      #   precision: 19
+      #   scale: 4
+
+  ProductionTestSmall:
+    source_table: "dbo.ProductionTestSmall"
+    destination_table: "production_test_small"
+    disposition: "replace"
+    incremental:
+      enabled: false
+    enabled: true
+    
+    # MONEY coercion for ProductionTestSmall
+    column_hints:
+      moneyvalue:
+        data_type: "decimal"
+        precision: 19
+        scale: 4
+
+  # Regular tables without MONEY issues
+  Users:
+    source_table: "dbo.Users"
+    destination_table: "users"
+    disposition: "replace"
+    incremental:
+      enabled: false
+    enabled: true
+
+  Posts:
+    source_table: "dbo.Posts"
+    destination_table: "posts"
+    disposition: "merge"
+    incremental:
+      enabled: true
+      strategy: "timestamp"
+      watermark_column: "CreationDate"
+      initial_value: "2020-01-01T00:00:00"
+    primary_key: ["Id"]
+    where_clause: "IsDeleted = 0 OR IsDeleted IS NULL"
+    enabled: true
+
+verification:
+  enabled: true
+  tolerance: 0
+  tables: ["ProductionTestTable", "ProductionTestSmall", "Users", "Posts"]
+
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file_path: null
+  max_file_size: 10485760
+  backup_count: 5

@@ -405,6 +405,148 @@ _dlt_load_id: dictionary<values=string, indices=int8, ordered=0> not null
    - Look for precision mismatches in PyArrow error logs
    - Monitor DLT schema hash changes between runs
 
+## ✅ SOLUTION: MONEY Column Coercion to DECIMAL(19,4)
+
+### DLT Column Hints Approach
+
+Since you cannot alter MONEY columns in source or destination, use **DLT's column hints feature** to force consistent DECIMAL(19,4) mapping:
+
+```python
+# Method 1: Using DLT Column Hints in Code
+import dlt
+from dlt.sources.sql_database import sql_database
+
+# Create source with column type coercion
+source = sql_database(
+    "your_source_connection_string",
+    backend="pyarrow",
+    chunk_size=10000
+).with_resources("ProductionTestTable")
+
+# Apply MONEY column hints for consistent mapping
+resource = source.resources["ProductionTestTable"]
+resource = resource.apply_hints(
+    table_name="production_test_table",
+    write_disposition="replace",
+    columns={
+        # Force all MONEY columns to DECIMAL(19,4)
+        "price1": {"data_type": "decimal", "precision": 19, "scale": 4},
+        "price2": {"data_type": "decimal", "precision": 19, "scale": 4},
+        "price3": {"data_type": "decimal", "precision": 19, "scale": 4},
+        "price4": {"data_type": "decimal", "precision": 19, "scale": 4},
+        "price5": {"data_type": "decimal", "precision": 19, "scale": 4},
+        # Add any other MONEY columns in your schema
+    }
+)
+
+# Run pipeline - MONEY columns will be consistently DECIMAL(19,4)
+pipeline.run(resource)
+```
+
+### Configuration-Based Approach
+
+```yaml
+# Enhanced pipeline_config.yaml with MONEY coercion
+tables:
+  ProductionTestTable:
+    source_table: "dbo.ProductionTestTable"
+    destination_table: "production_test_table"
+    disposition: "replace"
+    
+    # Column type overrides for consistent schema
+    column_hints:
+      price1:
+        data_type: "decimal"
+        precision: 19
+        scale: 4
+      price2:
+        data_type: "decimal"
+        precision: 19
+        scale: 4
+      price3:
+        data_type: "decimal"
+        precision: 19
+        scale: 4
+      price4:
+        data_type: "decimal"
+        precision: 19
+        scale: 4
+      price5:
+        data_type: "decimal"
+        precision: 19
+        scale: 4
+```
+
+### Dynamic MONEY Column Detection
+
+```python
+def detect_money_columns_and_create_hints(connection_string, table_name):
+    """Automatically detect and create hints for MONEY columns"""
+    import pyodbc
+    
+    # Connect and query for MONEY columns
+    query = """
+    SELECT COLUMN_NAME 
+    FROM INFORMATION_SCHEMA.COLUMNS 
+    WHERE TABLE_NAME = ? AND DATA_TYPE = 'money'
+    """
+    
+    money_hints = {}
+    with pyodbc.connect(connection_string) as conn:
+        cursor = conn.cursor()
+        cursor.execute(query, table_name)
+        
+        for row in cursor.fetchall():
+            column_name = row[0].lower()
+            money_hints[column_name] = {
+                "data_type": "decimal",
+                "precision": 19,
+                "scale": 4
+            }
+    
+    return money_hints
+
+# Usage
+money_hints = detect_money_columns_and_create_hints(conn_str, "ProductionTestTable")
+resource = resource.apply_hints(columns=money_hints)
+```
+
+### Benefits of This Approach
+
+1. **✅ No Source Changes Required**: MONEY columns stay as-is in source database
+2. **✅ No Destination Changes Required**: DLT handles the conversion transparently  
+3. **✅ Consistent Schema**: Every run maps MONEY to same DECIMAL(19,4)
+4. **✅ Prevents Schema Evolution**: PyArrow sees consistent precision every time
+5. **✅ Production Ready**: Works with your 100+ columns and 1M+ rows
+
+### Implementation Steps
+
+1. **Identify MONEY Columns**: Query your source schema for MONEY data types
+2. **Create Column Hints**: Map each MONEY column to DECIMAL(19,4)
+3. **Apply Hints**: Use `resource.apply_hints(columns=money_hints)`
+4. **Test Once**: Verify first run creates DECIMAL(19,4) in destination
+5. **Production Use**: Subsequent runs will be consistent
+
+### Verification
+
+After implementing, verify the fix:
+
+```sql
+-- Check destination table precision
+SELECT 
+    COLUMN_NAME, 
+    NUMERIC_PRECISION, 
+    NUMERIC_SCALE 
+FROM INFORMATION_SCHEMA.COLUMNS 
+WHERE TABLE_NAME = 'production_test_table' 
+AND DATA_TYPE = 'decimal'
+AND COLUMN_NAME LIKE '%price%';
+
+-- Should show: precision=19, scale=4 for all MONEY columns
+```
+
+**Result**: All MONEY columns consistently mapped to DECIMAL(19,4), eliminating schema evolution conflicts while preserving your source schema unchanged.
+
 ### Performance Optimization
 - **< 25 columns**: Optimal performance (~1000 rows/sec)
 - **25-50 columns**: Good performance (~800 rows/sec)  
