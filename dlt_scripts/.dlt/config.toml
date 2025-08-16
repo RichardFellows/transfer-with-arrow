@@ -12,7 +12,9 @@ tz="UTC"
 create_indexes=false
 has_case_sensitive_identifiers=false
 autocommit=true
-isolation_level="READ_COMMITTED"
+isolation_level="READ_UNCOMMITTED"
+pool_pre_ping=true
+pool_recycle=300
 
 [normalize.parquet_normalizer]
 add_dlt_load_id=true

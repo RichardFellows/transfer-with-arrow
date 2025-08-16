@@ -78,7 +78,7 @@ pipeline-run:
 	docker exec dlt-runner python /app/run_pipeline.py run
 
 pipeline-run-dev:
-	docker exec dlt-runner python /app/run_pipeline.py run --environment dev
+	docker exec dlt-runner python /app/run_pipeline.py -e dev run
 
 pipeline-validate:
 	docker exec dlt-runner python /app/run_pipeline.py validate
@@ -94,7 +94,7 @@ pipeline-run-users:
 	docker exec dlt-runner python /app/run_pipeline.py run --tables Users
 
 pipeline-run-test:
-	docker exec dlt-runner python /app/run_pipeline.py run --environment test
+	docker exec dlt-runner python /app/run_pipeline.py -e test run
 
 # Testing targets
 test-build:
