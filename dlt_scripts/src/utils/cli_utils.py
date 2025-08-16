@@ -23,13 +23,13 @@ def validate_config_command(args: argparse.Namespace) -> int:
         config_dir = Path(args.config_dir) if args.config_dir else None
         loader = ConfigLoader(config_dir)
         
-        print(f"Validating configuration file: {args.config_file}")
+        print(f"Validating configuration file: {args.config}")
         
         if args.environment:
             print(f"Using environment: {args.environment}")
         
         # Validate configuration
-        config = loader.load_configuration(args.config_file, args.environment)
+        config = loader.load_configuration(args.config, args.environment)
         
         print("✅ Configuration is valid!")
         
@@ -110,11 +110,11 @@ def show_config_command(args: argparse.Namespace) -> int:
         config_dir = Path(args.config_dir) if args.config_dir else None
         loader = ConfigLoader(config_dir)
         
-        print(f"Loading configuration: {args.config_file}")
+        print(f"Loading configuration: {args.config}")
         if args.environment:
             print(f"Environment: {args.environment}")
         
-        config = loader.load_configuration(args.config_file, args.environment)
+        config = loader.load_configuration(args.config, args.environment)
         
         # Show resolved configuration
         import yaml

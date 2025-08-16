@@ -208,7 +208,7 @@ class DataVerifier:
         try:
             # Get source count
             source_table = table_config.source_table
-            source_schema = self.config.connections["source"].schema
+            source_schema = self.config.connections["source"].schema_name
             
             if table_config.where_clause:
                 source_query = f"SELECT COUNT(*) FROM {source_table} WHERE {table_config.where_clause}"
@@ -220,7 +220,7 @@ class DataVerifier:
             
             # Get destination count
             dest_table = table_config.destination_table
-            dest_schema = self.config.connections["destination"].schema
+            dest_schema = self.config.connections["destination"].schema_name
             dest_query = f"SELECT COUNT(*) FROM {dest_schema}.{dest_table}"
             
             with self.dest_engine.connect() as conn:
@@ -273,7 +273,7 @@ class DataVerifier:
         """
         try:
             dest_table = table_config.destination_table
-            dest_schema = self.config.connections["destination"].schema
+            dest_schema = self.config.connections["destination"].schema_name
             
             # Check if table exists in destination
             existence_query = f"""
@@ -322,7 +322,7 @@ class DataVerifier:
         """
         try:
             dest_table = table_config.destination_table
-            dest_schema = self.config.connections["destination"].schema
+            dest_schema = self.config.connections["destination"].schema_name
             pk_columns = table_config.primary_key
             
             if not pk_columns:

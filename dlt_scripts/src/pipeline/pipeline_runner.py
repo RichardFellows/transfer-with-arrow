@@ -76,9 +76,18 @@ class PipelineRunner:
             self.logger.info(f"Processing {len(tables_to_run)} tables: {', '.join(tables_to_run.keys())}")
             
             # Process each table
+            failed_tables = []
             for table_name, table_config in tables_to_run.items():
                 table_result = self._process_table(table_name, table_config)
                 self.processed_tables[table_name] = table_result
+                
+                # Track failed tables
+                if table_result.get("status") == "failed":
+                    failed_tables.append(table_name)
+            
+            # Check if any table failed
+            if failed_tables:
+                raise Exception(f"Table processing failed for: {', '.join(failed_tables)}")
             
             # Run verification if enabled
             verification_results = {}

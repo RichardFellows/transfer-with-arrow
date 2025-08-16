@@ -319,51 +319,36 @@ class TestPipelineRunner:
             runner = PipelineRunner(sample_config)
             
             assert runner.config == sample_config
-            assert runner.results == {
-                'status': 'pending',
-                'start_time': None,
-                'end_time': None,
-                'duration_seconds': 0,
-                'tables_processed': [],
-                'table_results': {},
-                'verification_results': {},
-                'error': None
-            }
+            assert runner.start_time is None
+            assert runner.processed_tables == {}
 
     @pytest.mark.unit
     def test_get_enabled_tables(self, sample_config):
         """Test getting enabled tables from configuration."""
-        with patch('src.pipeline.pipeline_runner.setup_logging'), \
-             patch('src.pipeline.table_processor.TableProcessor'), \
-             patch('src.pipeline.verification.DataVerifier'):
-            
-            runner = PipelineRunner(sample_config)
-            
-            # All tables enabled by default
-            enabled_tables = runner._get_enabled_tables()
-            assert "Users" in enabled_tables
-            assert "Posts" in enabled_tables
-            
-            # Filter specific tables
-            specific_tables = runner._get_enabled_tables(["Users"])
-            assert "Users" in specific_tables
-            assert "Posts" not in specific_tables
+        from src.pipeline.config_models import get_enabled_tables
+        
+        # All tables enabled by default
+        enabled_tables = get_enabled_tables(sample_config)
+        assert "Users" in enabled_tables
+        assert "Posts" in enabled_tables
+        
+        # Verify table configurations
+        assert enabled_tables["Users"].source_table == "dbo.Users"
+        assert enabled_tables["Posts"].source_table == "dbo.Posts"
 
     @pytest.mark.unit
     def test_run_with_mocked_dependencies(self, sample_config):
         """Test pipeline run with mocked dependencies."""
-        with patch('src.pipeline.pipeline_runner.setup_logging'), \
-             patch('src.pipeline.table_processor.TableProcessor') as mock_processor_class, \
+        with patch('src.pipeline.pipeline_runner.setup_logging') as mock_logging, \
+             patch.object(PipelineRunner, '_process_table') as mock_process_table, \
              patch('src.pipeline.verification.DataVerifier') as mock_verification_class:
             
             # Setup mocks
-            mock_processor = Mock()
-            mock_processor.process_table.return_value = {
+            mock_process_table.return_value = {
                 'status': 'success',
                 'duration_seconds': 1.5,
                 'rows_processed': 100
             }
-            mock_processor_class.return_value = mock_processor
             
             mock_verification = Mock()
             mock_verification.verify_all_tables.return_value = {
@@ -388,25 +373,21 @@ class TestPipelineRunner:
     def test_run_with_table_processing_error(self, sample_config):
         """Test pipeline run when table processing fails."""
         with patch('src.pipeline.pipeline_runner.setup_logging'), \
-             patch('src.pipeline.table_processor.TableProcessor') as mock_processor_class, \
+             patch.object(PipelineRunner, '_process_table') as mock_process_table, \
              patch('src.pipeline.verification.DataVerifier'):
             
-            # Setup mock to fail on second table
-            mock_processor = Mock()
-            mock_processor.process_table.side_effect = [
-                {
-                    'status': 'success',
-                    'duration_seconds': 1.0,
-                    'rows_processed': 50
-                },
-                Exception("Database connection failed")
-            ]
-            mock_processor_class.return_value = mock_processor
+            # Setup mock to return failure status for tables
+            mock_process_table.return_value = {
+                'status': 'failed',
+                'duration_seconds': 1.0,
+                'error': 'Database connection failed'
+            }
             
             runner = PipelineRunner(sample_config)
             results = runner.run()
             
-            # Should fail after first table succeeds
-            assert results['status'] == 'error'
-            assert len(results['tables_processed']) == 1  # Only first table processed
-            assert 'Database connection failed' in results['error']
+            # Should fail when tables have failed status
+            assert results['status'] == 'failed'
+            assert 'Table processing failed for:' in results['error']
+            assert 'Users' in results['error']
+            assert 'Posts' in results['error']
