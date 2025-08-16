@@ -1,0 +1,51 @@
+# Test Environment Configuration
+# This file contains test-specific overrides for automated testing
+
+pipeline:
+  name: "stackoverflow_migration_test"
+  dataset_name: "test_data"
+  chunk_size: 100  # Very small chunks for testing
+
+connections:
+  source:
+    connection_string: "${TEST_SOURCE_CONNECTION_STRING:mssql+pyodbc://sa:Strong!Passw0rd@mssql-source:1433/master?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes&Encrypt=yes}"
+    schema: "dbo"
+    timeout: 5
+  destination:
+    connection_string: "${TEST_DEST_CONNECTION_STRING:mssql+pyodbc://sa:Strong!Passw0rd@mssql-dest:1433/master?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes&Encrypt=yes}"
+    schema: "test_data"
+    timeout: 5
+
+tables:
+  # Test environment only processes Users and Comments for speed
+  Users:
+    enabled: true
+  
+  Posts:
+    enabled: false  # Disabled due to data truncation issues in test environment
+  
+  Comments:
+    enabled: true
+    incremental:
+      enabled: false  # Disable incremental for simpler testing
+  
+  Votes:
+    enabled: false
+  
+  Badges:
+    enabled: false
+  
+  PostTags:
+    enabled: false
+  
+  Tags:
+    enabled: false
+
+verification:
+  enabled: true
+  tolerance: 0
+  tables: ["Users", "Comments"]  # Only verify enabled tables
+
+logging:
+  level: "DEBUG"
+  file_path: null  # Console logging only for tests

@@ -4,6 +4,7 @@ venv/
 env/
 ENV/
 .env
+test-env/
 
 # Python cache and bytecode
 __pycache__/

@@ -1,0 +1,20 @@
+#!/usr/bin/env python3
+
+"""
+CLI wrapper for the configuration-driven data migration pipeline.
+This script provides a convenient entry point for running the pipeline.
+"""
+
+import sys
+import os
+from pathlib import Path
+
+# Add the script directory to Python path
+script_dir = Path(__file__).parent
+sys.path.insert(0, str(script_dir))
+
+# Import and run the main CLI
+from run_pipeline import main
+
+if __name__ == '__main__':
+    sys.exit(main())

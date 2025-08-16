@@ -1,0 +1,43 @@
+# Development Environment Configuration
+# This file contains development-specific overrides
+
+pipeline:
+  name: "stackoverflow_migration_dev"
+  dataset_name: "stackoverflow_data_dev"
+  chunk_size: 1000  # Smaller chunks for development
+
+connections:
+  source:
+    connection_string: "${DEV_SOURCE_CONNECTION_STRING:${SOURCE_CONNECTION_STRING}}"
+    timeout: 10
+  destination:
+    connection_string: "${DEV_DEST_CONNECTION_STRING:${DEST_CONNECTION_STRING}}"
+    timeout: 10
+
+tables:
+  # In development, only process a subset of tables for faster testing
+  Posts:
+    where_clause: "CreationDate >= '2023-01-01' AND (IsDeleted = 0 OR IsDeleted IS NULL)"
+    incremental:
+      initial_value: "2023-01-01T00:00:00"
+
+  Comments:
+    where_clause: "CreationDate >= '2023-01-01'"
+    incremental:
+      initial_value: "2023-01-01T00:00:00"
+
+  # Disable some tables in development for faster testing
+  Votes:
+    enabled: false
+  
+  PostTags:
+    enabled: false
+
+verification:
+  enabled: true
+  tolerance: 5  # Allow more variance in development
+  tables: ["Users", "Posts", "Comments"]  # Only verify core tables
+
+logging:
+  level: "DEBUG"
+  file_path: "logs/dev_pipeline.log"

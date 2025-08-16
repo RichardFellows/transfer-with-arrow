@@ -4,12 +4,19 @@ help:
 	@echo "Available commands:"
 	@echo "  make up           - Start all containers"
 	@echo "  make setup        - Setup databases and restore backup"
-	@echo "  make test-copy    - Run test copy of all tables"
-	@echo "  make test-users   - Copy only Users table"
-	@echo "  make test-incremental - Test incremental loading"
-	@echo "  make verify       - Verify data copy"
+	@echo "  make test-copy    - Run test copy of all tables (legacy)"
+	@echo "  make test-users   - Copy only Users table (legacy)"
+	@echo "  make test-incremental - Test incremental loading (legacy)"
+	@echo "  make verify       - Verify data copy (legacy)"
 	@echo "  make logs         - Show container logs"
 	@echo "  make clean        - Stop and remove all containers and volumes"
+	@echo ""
+	@echo "New Configuration-driven Pipeline:"
+	@echo "  make pipeline-run          - Run pipeline with default config"
+	@echo "  make pipeline-run-dev      - Run pipeline with dev environment"
+	@echo "  make pipeline-validate     - Validate pipeline configuration"
+	@echo "  make pipeline-stats        - Show pipeline statistics"
+	@echo "  make pipeline-help         - Show pipeline CLI help"
 	@echo ""
 	@echo "Testing commands:"
 	@echo "  make test         - Run all tests (unit + integration)"
@@ -60,6 +67,29 @@ sql-source:
 
 sql-dest:
 	docker exec -it mssql-dest /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'Strong!Passw0rd'
+
+# New configuration-driven pipeline commands
+pipeline-run:
+	docker exec dlt-runner python /app/run_pipeline.py run
+
+pipeline-run-dev:
+	docker exec dlt-runner python /app/run_pipeline.py run --environment dev
+
+pipeline-validate:
+	docker exec dlt-runner python /app/run_pipeline.py validate
+
+pipeline-stats:
+	docker exec dlt-runner python /app/run_pipeline.py stats
+
+pipeline-help:
+	docker exec dlt-runner python /app/run_pipeline.py --help
+
+# Pipeline commands with specific configurations
+pipeline-run-users:
+	docker exec dlt-runner python /app/run_pipeline.py run --tables Users
+
+pipeline-run-test:
+	docker exec dlt-runner python /app/run_pipeline.py run --environment test
 
 # Testing targets
 test-build:

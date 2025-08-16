@@ -1,0 +1,108 @@
+# Main Pipeline Configuration
+# This file contains the base configuration for the data migration pipeline
+
+pipeline:
+  name: "stackoverflow_migration"
+  dataset_name: "stackoverflow_data"
+  chunk_size: 10000
+  backend: "pyarrow"
+  loader_file_format: "parquet"
+  reflection_level: "full_with_precision"
+  backend_kwargs:
+    tz: "UTC"
+
+connections:
+  source:
+    connection_string: "${SOURCE_CONNECTION_STRING}"
+    schema: "dbo"
+    timeout: 30
+  destination:
+    connection_string: "${DEST_CONNECTION_STRING}"
+    schema: "stackoverflow_data"
+    timeout: 30
+
+tables:
+  Users:
+    source_table: "dbo.Users"
+    destination_table: "users"
+    disposition: "replace"
+    incremental:
+      enabled: false
+    enabled: true
+
+  Posts:
+    source_table: "dbo.Posts"
+    destination_table: "posts"
+    disposition: "merge"
+    incremental:
+      enabled: true
+      strategy: "timestamp"
+      watermark_column: "CreationDate"
+      initial_value: "2020-01-01T00:00:00"
+    primary_key: ["Id"]
+    # Custom WHERE clause to filter out deleted posts
+    where_clause: "IsDeleted = 0 OR IsDeleted IS NULL"
+    enabled: true
+
+  Comments:
+    source_table: "dbo.Comments"
+    destination_table: "comments"
+    disposition: "append"
+    incremental:
+      enabled: true
+      strategy: "timestamp"
+      watermark_column: "CreationDate"
+      initial_value: "2023-01-01T00:00:00"
+    enabled: true
+
+  Votes:
+    source_table: "dbo.Votes"
+    destination_table: "votes"
+    disposition: "replace"
+    incremental:
+      enabled: false
+    enabled: true
+
+  Badges:
+    source_table: "dbo.Badges"
+    destination_table: "badges"
+    disposition: "replace"
+    incremental:
+      enabled: true
+      strategy: "timestamp"
+      watermark_column: "Date"
+      initial_value: "2020-01-01T00:00:00"
+    enabled: true
+
+  PostTags:
+    source_table: "dbo.PostTags"
+    destination_table: "post_tags"
+    disposition: "replace"
+    incremental:
+      enabled: false
+    enabled: true
+
+  Tags:
+    source_table: "dbo.Tags"
+    destination_table: "tags"
+    disposition: "replace"
+    incremental:
+      enabled: false
+    enabled: true
+
+verification:
+  enabled: true
+  tolerance: 0
+  # Verify specific tables (if not specified, all enabled tables are verified)
+  tables: ["Users", "Posts", "Comments", "Votes", "Badges", "Tags"]
+  custom_checks:
+    # Custom verification queries
+    users_reputation_check: "SELECT COUNT(*) FROM users WHERE reputation < 0"
+    posts_valid_dates: "SELECT COUNT(*) FROM posts WHERE creation_date > GETDATE()"
+
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file_path: null  # Set to a file path to enable file logging
+  max_file_size: 10485760  # 10MB
+  backup_count: 5

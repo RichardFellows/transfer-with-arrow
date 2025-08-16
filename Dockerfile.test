@@ -39,6 +39,8 @@ RUN mkdir -p /app/.dlt /tests
 # Copy application code
 COPY dlt_scripts/.dlt /app/.dlt
 COPY dlt_scripts/*.py /app/
+COPY dlt_scripts/src /app/src
+COPY dlt_scripts/config /app/config
 
 # Set Python path
 ENV PYTHONPATH=/app:/tests

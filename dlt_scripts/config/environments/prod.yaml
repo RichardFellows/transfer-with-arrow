@@ -1,0 +1,41 @@
+# Production Environment Configuration
+# This file contains production-specific overrides
+
+pipeline:
+  name: "stackoverflow_migration_prod"
+  dataset_name: "stackoverflow_data"
+  chunk_size: 50000  # Larger chunks for production efficiency
+
+connections:
+  source:
+    connection_string: "${PROD_SOURCE_CONNECTION_STRING}"
+    timeout: 60  # Longer timeout for production
+  destination:
+    connection_string: "${PROD_DEST_CONNECTION_STRING}"
+    timeout: 60
+
+tables:
+  # Production uses full data loads
+  Posts:
+    incremental:
+      initial_value: "2008-01-01T00:00:00"  # StackOverflow launch date
+  
+  Comments:
+    incremental:
+      initial_value: "2008-01-01T00:00:00"
+  
+  Badges:
+    incremental:
+      initial_value: "2008-01-01T00:00:00"
+
+verification:
+  enabled: true
+  tolerance: 0  # Zero tolerance in production
+  # Verify all tables in production
+  tables: ["Users", "Posts", "Comments", "Votes", "Badges", "PostTags", "Tags"]
+
+logging:
+  level: "INFO"
+  file_path: "logs/prod_pipeline.log"
+  max_file_size: 52428800  # 50MB for production
+  backup_count: 10
