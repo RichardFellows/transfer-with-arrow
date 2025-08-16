@@ -141,7 +141,6 @@ test-clean:
 	docker rmi transfer-with-arrow_dlt-runner-test 2>/dev/null || true
 
 test-coverage: test
-	@echo "Note: 'make test-coverage' is now an alias for 'make test' since all test commands generate coverage."
 
 test-simple: test-build
 	@echo "Running all tests (simple output)..."
