@@ -21,11 +21,20 @@ This is a data migration project that transfers StackOverflow database tables fr
 - `make setup` - Setup databases and restore StackOverflow backup
 - `make clean` - Stop and remove all containers and volumes
 
-### Data Migration Commands
-- `make test-copy` - Run full copy of all StackOverflow tables
-- `make test-users` - Copy only the Users table (useful for testing)
-- `make test-incremental` - Test incremental loading on Posts table
-- `make verify` - Verify data copy by comparing row counts between source and destination
+### Configuration-Driven Data Pipeline Commands
+- `make pipeline-run` - Run pipeline with default configuration
+- `make pipeline-run-dev` - Run pipeline with development environment settings
+- `make pipeline-run-users` - Run pipeline for Users table only
+- `make pipeline-validate` - Validate pipeline configuration
+- `make pipeline-stats` - Show pipeline statistics and table information
+- `make pipeline-help` - Show detailed CLI help
+
+### Legacy Commands (Redirected)
+⚠️ **Note**: Legacy commands have been replaced by the new configuration-driven system:
+- `make test-copy` → `make pipeline-run` (with full table configuration)
+- `make test-users` → `make pipeline-run-users` 
+- `make test-incremental` → Configure incremental loading in YAML and use `make pipeline-run`
+- `make verify` → Enable `verification.enabled: true` in config and use `make pipeline-run`
 
 ### Development Commands
 - `make logs` - Show container logs
@@ -41,26 +50,76 @@ This is a data migration project that transfers StackOverflow database tables fr
 - `make test-clean` - Clean test containers and volumes
 - `make test-shell` - Start test container shell for debugging
 
-### Direct Script Usage
-Execute the Python script directly in the DLT runner container:
+### Advanced Pipeline Usage
+Execute the configuration-driven pipeline directly in the DLT runner container:
 ```bash
-docker exec dlt-runner python /app/copy_stackoverflow.py [options]
+docker exec dlt-runner python /app/run_pipeline.py [command] [options]
 ```
 
-Options:
-- `--tables [table1 table2 ...]` - Specify tables to copy
-- `--incremental` - Use incremental loading
-- `--verify` - Verify copy after completion
-- `--disposition [replace|append|merge]` - Write disposition (default: replace)
+Commands:
+- `run` - Execute the data migration pipeline
+- `validate` - Validate configuration without running
+- `stats` - Show configuration overview and statistics
 
-## Data Pipeline Details
+Global Options:
+- `--config, -c` - Configuration file (default: pipeline_config.yaml)
+- `--environment, -e` - Environment configuration (dev, staging, prod, etc.)
+- `--config-dir` - Configuration directory (default: config/)
 
-The DLT pipeline is configured with:
+Run Command Options:
+- `--tables, -t` - Specific tables to process
+- `--output, -o` - Save results to JSON file
+
+Examples:
+```bash
+# Run with default configuration
+docker exec dlt-runner python /app/run_pipeline.py run
+
+# Run with development environment
+docker exec dlt-runner python /app/run_pipeline.py run --environment dev
+
+# Run specific tables only
+docker exec dlt-runner python /app/run_pipeline.py run --tables Users Posts
+
+# Validate configuration
+docker exec dlt-runner python /app/run_pipeline.py validate --environment prod
+```
+
+## Configuration-Driven Data Pipeline Architecture
+
+The new pipeline system provides enhanced flexibility through YAML-based configuration:
+
+### Core Features
+- **🎯 YAML Configuration**: Complete pipeline definition in `dlt_scripts/config/pipeline_config.yaml`
+- **🔧 Environment Support**: Environment-specific configurations (dev/staging/prod) with overrides
+- **⚡ Advanced Incremental Loading**: Multiple strategies (timestamp, sequence, custom) per table
+- **✅ Data Verification**: Built-in verification with custom checks and tolerance settings
+- **📊 Comprehensive Logging**: Structured logging with progress tracking and monitoring
+- **🔍 Schema Validation**: Pydantic-based configuration validation with detailed error reporting
+
+### Default Pipeline Configuration
 - **Backend**: PyArrow for efficient data processing
-- **File Format**: Parquet for optimized storage
-- **Chunk Size**: 10,000 rows per chunk
+- **File Format**: Parquet for optimized storage and compression
+- **Chunk Size**: 10,000 rows per chunk (configurable per environment)
 - **Default Tables**: Users, Posts, Comments, Votes, Badges, PostTags, Tags
-- **Connection Strings**: Configured via environment variables in docker-compose.yaml
+- **Connection Management**: Environment variable substitution with secure credential handling
+- **Error Handling**: Graceful error handling with detailed logging and recovery options
+
+### Configuration Structure
+```
+dlt_scripts/
+├── config/
+│   ├── pipeline_config.yaml      # Main configuration
+│   └── environments/             # Environment-specific overrides
+│       ├── dev.yaml              # Development settings
+│       ├── prod.yaml             # Production settings  
+│       └── test.yaml             # Test environment settings
+├── src/pipeline/                 # Core pipeline components
+├── run_pipeline.py               # Main CLI entry point
+└── README.md                     # Detailed documentation
+```
+
+See `dlt_scripts/README.md` for comprehensive configuration options and examples.
 
 ## Testing Architecture
 
@@ -70,13 +129,15 @@ The project includes comprehensive testing with both unit and integration tests:
 - Mock external dependencies (databases, DLT framework)
 - Test individual function logic and error handling
 - Fast execution, no external dependencies required
-- Located in `tests/unit/test_copy_stackoverflow.py`
+- Configuration system tests: `tests/unit/test_config_system.py`
+- Pipeline compatibility tests: `tests/unit/test_pipeline_compatibility.py`
 
 ### Integration Tests (`tests/integration/`)
 - Use real SQL Server containers via testcontainers library
 - Test complete data migration workflows
 - Verify data integrity and pipeline functionality
-- Located in `tests/integration/test_full_pipeline.py`
+- Configuration-driven pipeline tests: `tests/integration/test_config_pipeline.py`
+- Full pipeline integration tests: `tests/integration/test_full_pipeline_new.py`
 
 ### Test Dependencies
 - `pytest` - Testing framework

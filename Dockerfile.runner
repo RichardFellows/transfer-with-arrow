@@ -31,6 +31,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 RUN mkdir -p /app/.dlt
 
-# Copy configuration files first
+# Copy configuration files and application code
 COPY dlt_scripts/.dlt /app/.dlt
 COPY dlt_scripts/*.py /app/
+COPY dlt_scripts/src /app/src
+COPY dlt_scripts/config /app/config

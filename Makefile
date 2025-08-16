@@ -4,19 +4,22 @@ help:
 	@echo "Available commands:"
 	@echo "  make up           - Start all containers"
 	@echo "  make setup        - Setup databases and restore backup"
-	@echo "  make test-copy    - Run test copy of all tables (legacy)"
-	@echo "  make test-users   - Copy only Users table (legacy)"
-	@echo "  make test-incremental - Test incremental loading (legacy)"
-	@echo "  make verify       - Verify data copy (legacy)"
 	@echo "  make logs         - Show container logs"
 	@echo "  make clean        - Stop and remove all containers and volumes"
 	@echo ""
-	@echo "New Configuration-driven Pipeline:"
+	@echo "Configuration-driven Data Pipeline:"
 	@echo "  make pipeline-run          - Run pipeline with default config"
 	@echo "  make pipeline-run-dev      - Run pipeline with dev environment"
+	@echo "  make pipeline-run-users    - Run pipeline with only Users table"
 	@echo "  make pipeline-validate     - Validate pipeline configuration"
 	@echo "  make pipeline-stats        - Show pipeline statistics"
 	@echo "  make pipeline-help         - Show pipeline CLI help"
+	@echo ""
+	@echo "Legacy Commands (redirected to new pipeline):"
+	@echo "  make test-copy    - ⚠️  Use 'make pipeline-run' instead"
+	@echo "  make test-users   - ⚠️  Use 'make pipeline-run-users' instead"
+	@echo "  make test-incremental - ⚠️  Configure in YAML and use 'make pipeline-run'"
+	@echo "  make verify       - ⚠️  Enable verification in config and use 'make pipeline-run'"
 	@echo ""
 	@echo "Testing commands:"
 	@echo "  make test         - Run all tests (unit + integration)"
@@ -40,17 +43,27 @@ setup: up
 	docker exec mssql-source /scripts/restore_backup.sh
 	@echo "Setup complete!"
 
+# Legacy commands (replaced by new configuration-driven pipeline)
 test-copy:
-	docker exec dlt-runner python /app/copy_stackoverflow.py
+	@echo "⚠️  Legacy command: Use 'make pipeline-run' instead"
+	@echo "   New command provides equivalent functionality with better configurability"
+	make pipeline-run
 
 test-users:
-	docker exec dlt-runner python /app/copy_stackoverflow.py --tables Users
+	@echo "⚠️  Legacy command: Use 'make pipeline-run-users' instead"  
+	@echo "   New command provides equivalent functionality with better configurability"
+	make pipeline-run-users
 
 test-incremental:
-	docker exec dlt-runner python /app/copy_stackoverflow.py --tables Posts --incremental
+	@echo "⚠️  Legacy command: Configure incremental loading in YAML config and use 'make pipeline-run'"
+	@echo "   New system provides more advanced incremental loading options"
+	docker exec dlt-runner python /app/run_pipeline.py run --tables Posts --environment dev
 
 verify:
-	docker exec dlt-runner python /app/copy_stackoverflow.py --verify
+	@echo "⚠️  Legacy command: Verification is now built into the pipeline"
+	@echo "   Enable verification in configuration: verification.enabled: true"
+	@echo "   Running pipeline with verification enabled..."
+	make pipeline-run
 
 logs:
 	docker-compose logs -f
