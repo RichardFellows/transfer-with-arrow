@@ -103,7 +103,7 @@ test-build:
 test: test-build
 	@echo "Running all tests with reports..."
 	@mkdir -p test-reports
-	docker-compose -f docker-compose.test.yaml run --rm -v $(PWD)/test-reports:/test-reports dlt-runner-test pytest /tests -v --cov=/app/src --cov=/app/run_pipeline.py --cov-report=html:/test-reports/coverage_html --cov-report=term --cov-report=xml:/test-reports/coverage.xml --cov-report=lcov:/test-reports/lcov.info --html=/test-reports/test_report.html --self-contained-html --junitxml=/test-reports/test_results.xml --json-report --json-report-file=/test-reports/test_report.json --cov-fail-under=60
+	docker-compose -f docker-compose.test.yaml run --rm --remove-orphans -v $(PWD)/test-reports:/test-reports dlt-runner-test pytest /tests -v --cov=/app/src --cov=/app/run_pipeline.py --cov-report=html:/test-reports/coverage_html --cov-report=term --cov-report=xml:/test-reports/coverage.xml --cov-report=lcov:/test-reports/lcov.info --html=/test-reports/test_report.html --self-contained-html --junitxml=/test-reports/test_results.xml --json-report --json-report-file=/test-reports/test_report.json --cov-fail-under=60
 	@echo "Test reports generated in test-reports/ directory:"
 	@echo "  - HTML Report: test-reports/test_report.html"
 	@echo "  - JUnit XML: test-reports/test_results.xml"
@@ -115,22 +115,22 @@ test: test-build
 test-unit: test-build
 	@echo "Running unit tests with reports..."
 	@mkdir -p test-reports
-	docker-compose -f docker-compose.test.yaml run --rm -v $(PWD)/test-reports:/test-reports dlt-runner-test pytest /tests/unit -v -m unit --html=/test-reports/unit_test_report.html --self-contained-html --junitxml=/test-reports/unit_test_results.xml
+	docker-compose -f docker-compose.test.yaml run --rm --remove-orphans -v $(PWD)/test-reports:/test-reports dlt-runner-test pytest /tests/unit -v -m unit --html=/test-reports/unit_test_report.html --self-contained-html --junitxml=/test-reports/unit_test_results.xml
 
 test-integration: test-build
 	@echo "Running integration tests with reports..."
 	@mkdir -p test-reports
-	docker-compose -f docker-compose.test.yaml run --rm -v $(PWD)/test-reports:/test-reports dlt-runner-test pytest /tests/integration -v -m integration --html=/test-reports/integration_test_report.html --self-contained-html --junitxml=/test-reports/integration_test_results.xml
+	docker-compose -f docker-compose.test.yaml run --rm --remove-orphans -v $(PWD)/test-reports:/test-reports dlt-runner-test pytest /tests/integration -v -m integration --html=/test-reports/integration_test_report.html --self-contained-html --junitxml=/test-reports/integration_test_results.xml
 
 test-clean:
 	@echo "Cleaning test containers and volumes..."
-	docker-compose -f docker-compose.test.yaml down -v
+	docker-compose -f docker-compose.test.yaml down -v --remove-orphans
 	docker rmi transfer-with-arrow_dlt-runner-test 2>/dev/null || true
 
 test-coverage: test-build
 	@echo "Running tests with coverage and reports..."
 	@mkdir -p test-reports
-	docker-compose -f docker-compose.test.yaml run --rm -v $(PWD)/test-reports:/test-reports dlt-runner-test pytest /tests -v --cov=/app/src --cov=/app/run_pipeline.py --cov-report=html:/test-reports/coverage_html --cov-report=term --cov-report=xml:/test-reports/coverage.xml --cov-report=lcov:/test-reports/lcov.info --html=/test-reports/coverage_test_report.html --self-contained-html --junitxml=/test-reports/coverage_test_results.xml --cov-fail-under=0
+	docker-compose -f docker-compose.test.yaml run --rm --remove-orphans -v $(PWD)/test-reports:/test-reports dlt-runner-test pytest /tests -v --cov=/app/src --cov=/app/run_pipeline.py --cov-report=html:/test-reports/coverage_html --cov-report=term --cov-report=xml:/test-reports/coverage.xml --cov-report=lcov:/test-reports/lcov.info --html=/test-reports/coverage_test_report.html --self-contained-html --junitxml=/test-reports/coverage_test_results.xml --cov-fail-under=0
 	@echo "Coverage reports generated in test-reports/ directory:"
 	@echo "  - HTML Coverage: test-reports/coverage_html/index.html"
 	@echo "  - XML Coverage: test-reports/coverage.xml"
@@ -139,12 +139,12 @@ test-coverage: test-build
 
 test-simple: test-build
 	@echo "Running all tests (simple output)..."
-	docker-compose -f docker-compose.test.yaml up --abort-on-container-exit
-	docker-compose -f docker-compose.test.yaml down
+	docker-compose -f docker-compose.test.yaml up --abort-on-container-exit --remove-orphans
+	docker-compose -f docker-compose.test.yaml down --remove-orphans
 
 test-shell: test-build
 	@echo "Starting test container shell..."
-	docker-compose -f docker-compose.test.yaml run --rm dlt-runner-test /bin/bash
+	docker-compose -f docker-compose.test.yaml run --rm --remove-orphans dlt-runner-test /bin/bash
 
 test-help:
 	@echo "Test Commands Available:"
