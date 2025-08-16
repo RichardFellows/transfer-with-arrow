@@ -90,6 +90,63 @@ tables:
       enabled: false
     enabled: true
 
+  # Test tables for debugging DLT loading issues
+  TestCategories:
+    source_table: "dbo.TestCategories"
+    destination_table: "test_categories"
+    disposition: "replace"
+    incremental:
+      enabled: false
+    enabled: true
+
+  TestCustomers:
+    source_table: "dbo.TestCustomers"
+    destination_table: "test_customers"
+    disposition: "replace"
+    incremental:
+      enabled: false
+    enabled: true
+
+  TestOrders:
+    source_table: "dbo.TestOrders"
+    destination_table: "test_orders"
+    disposition: "merge"
+    incremental:
+      enabled: true
+      strategy: "timestamp"
+      watermark_column: "LastModified"
+      initial_value: "2024-01-01T00:00:00"
+    primary_key: ["Id"]
+    enabled: true
+
+  TestEvents:
+    source_table: "dbo.TestEvents"
+    destination_table: "test_events"
+    disposition: "append"
+    incremental:
+      enabled: true
+      strategy: "timestamp"
+      watermark_column: "Timestamp"
+      initial_value: "2024-01-01T00:00:00"
+    enabled: true
+
+  # Production-scale test tables
+  ProductionTestSmall:
+    source_table: "dbo.ProductionTestSmall"
+    destination_table: "production_test_small"
+    disposition: "replace"
+    incremental:
+      enabled: false
+    enabled: true
+
+  ProductionTestTable:
+    source_table: "dbo.ProductionTestTable"
+    destination_table: "production_test_table"
+    disposition: "replace"
+    incremental:
+      enabled: false
+    enabled: true
+
 verification:
   enabled: true
   tolerance: 0
