@@ -22,9 +22,10 @@ help:
 	@echo "  make verify                - Run pipeline with verification (alias for pipeline-run)"
 	@echo ""
 	@echo "Testing commands:"
-	@echo "  make test         - Run all tests (unit + integration)"
-	@echo "  make test-unit    - Run only unit tests"
-	@echo "  make test-integration - Run only integration tests"
+	@echo "  make test         - Run all tests (unit + integration) with coverage"
+	@echo "  make test-unit    - Run only unit tests with coverage"
+	@echo "  make test-integration - Run only integration tests with coverage"
+	@echo "  make test-coverage - Alias for 'make test' (all commands now include coverage)"
 	@echo "  make test-build   - Build test container"
 	@echo "  make test-clean   - Clean test containers and volumes"
 
@@ -101,7 +102,7 @@ test-build:
 	docker-compose -f docker-compose.test.yaml build
 
 test: test-build
-	@echo "Running all tests with reports..."
+	@echo "Running all tests with coverage and reports..."
 	@mkdir -p test-reports
 	docker-compose -f docker-compose.test.yaml run --rm --remove-orphans -v $(PWD)/test-reports:/test-reports dlt-runner-test pytest /tests -v --cov=/app/src --cov=/app/run_pipeline.py --cov-report=html:/test-reports/coverage_html --cov-report=term --cov-report=xml:/test-reports/coverage.xml --cov-report=lcov:/test-reports/lcov.info --html=/test-reports/test_report.html --self-contained-html --junitxml=/test-reports/test_results.xml --json-report --json-report-file=/test-reports/test_report.json --cov-fail-under=60
 	@echo "Test reports generated in test-reports/ directory:"
@@ -113,29 +114,34 @@ test: test-build
 	@echo "  - Coverage LCOV: test-reports/lcov.info"
 
 test-unit: test-build
-	@echo "Running unit tests with reports..."
+	@echo "Running unit tests with coverage and reports..."
 	@mkdir -p test-reports
-	docker-compose -f docker-compose.test.yaml run --rm --remove-orphans -v $(PWD)/test-reports:/test-reports dlt-runner-test pytest /tests/unit -v -m unit --html=/test-reports/unit_test_report.html --self-contained-html --junitxml=/test-reports/unit_test_results.xml
+	docker-compose -f docker-compose.test.yaml run --rm --remove-orphans -v $(PWD)/test-reports:/test-reports dlt-runner-test pytest /tests/unit -v -m unit --cov=/app/src --cov=/app/run_pipeline.py --cov-report=html:/test-reports/unit_coverage_html --cov-report=term --cov-report=xml:/test-reports/unit_coverage.xml --cov-report=lcov:/test-reports/unit_lcov.info --html=/test-reports/unit_test_report.html --self-contained-html --junitxml=/test-reports/unit_test_results.xml --cov-fail-under=0
+	@echo "Unit test reports generated in test-reports/ directory:"
+	@echo "  - HTML Report: test-reports/unit_test_report.html"
+	@echo "  - JUnit XML: test-reports/unit_test_results.xml"
+	@echo "  - Coverage HTML: test-reports/unit_coverage_html/index.html"
+	@echo "  - Coverage XML: test-reports/unit_coverage.xml"
+	@echo "  - Coverage LCOV: test-reports/unit_lcov.info"
 
 test-integration: test-build
-	@echo "Running integration tests with reports..."
+	@echo "Running integration tests with coverage and reports..."
 	@mkdir -p test-reports
-	docker-compose -f docker-compose.test.yaml run --rm --remove-orphans -v $(PWD)/test-reports:/test-reports dlt-runner-test pytest /tests/integration -v -m integration --html=/test-reports/integration_test_report.html --self-contained-html --junitxml=/test-reports/integration_test_results.xml
+	docker-compose -f docker-compose.test.yaml run --rm --remove-orphans -v $(PWD)/test-reports:/test-reports dlt-runner-test pytest /tests/integration -v -m integration --cov=/app/src --cov=/app/run_pipeline.py --cov-report=html:/test-reports/integration_coverage_html --cov-report=term --cov-report=xml:/test-reports/integration_coverage.xml --cov-report=lcov:/test-reports/integration_lcov.info --html=/test-reports/integration_test_report.html --self-contained-html --junitxml=/test-reports/integration_test_results.xml --cov-fail-under=0
+	@echo "Integration test reports generated in test-reports/ directory:"
+	@echo "  - HTML Report: test-reports/integration_test_report.html"
+	@echo "  - JUnit XML: test-reports/integration_test_results.xml"
+	@echo "  - Coverage HTML: test-reports/integration_coverage_html/index.html"
+	@echo "  - Coverage XML: test-reports/integration_coverage.xml"
+	@echo "  - Coverage LCOV: test-reports/integration_lcov.info"
 
 test-clean:
 	@echo "Cleaning test containers and volumes..."
 	docker-compose -f docker-compose.test.yaml down -v --remove-orphans
 	docker rmi transfer-with-arrow_dlt-runner-test 2>/dev/null || true
 
-test-coverage: test-build
-	@echo "Running tests with coverage and reports..."
-	@mkdir -p test-reports
-	docker-compose -f docker-compose.test.yaml run --rm --remove-orphans -v $(PWD)/test-reports:/test-reports dlt-runner-test pytest /tests -v --cov=/app/src --cov=/app/run_pipeline.py --cov-report=html:/test-reports/coverage_html --cov-report=term --cov-report=xml:/test-reports/coverage.xml --cov-report=lcov:/test-reports/lcov.info --html=/test-reports/coverage_test_report.html --self-contained-html --junitxml=/test-reports/coverage_test_results.xml --cov-fail-under=0
-	@echo "Coverage reports generated in test-reports/ directory:"
-	@echo "  - HTML Coverage: test-reports/coverage_html/index.html"
-	@echo "  - XML Coverage: test-reports/coverage.xml"
-	@echo "  - LCOV Coverage: test-reports/lcov.info"
-	@echo "  - Test Report: test-reports/coverage_test_report.html"
+test-coverage: test
+	@echo "Note: 'make test-coverage' is now an alias for 'make test' since all test commands generate coverage."
 
 test-simple: test-build
 	@echo "Running all tests (simple output)..."
@@ -148,18 +154,24 @@ test-shell: test-build
 
 test-help:
 	@echo "Test Commands Available:"
-	@echo "  make test              - Run all tests and generate comprehensive reports"
-	@echo "  make test-unit         - Run only unit tests with reports"
-	@echo "  make test-integration  - Run only integration tests with reports"
-	@echo "  make test-coverage     - Run tests with code coverage analysis"
+	@echo "  make test              - Run all tests with coverage and comprehensive reports"
+	@echo "  make test-unit         - Run only unit tests with coverage and reports"
+	@echo "  make test-integration  - Run only integration tests with coverage and reports"
+	@echo "  make test-coverage     - Alias for 'make test' (all commands now include coverage)"
 	@echo "  make test-simple       - Run tests with simple console output (no reports)"
 	@echo "  make test-clean        - Clean test containers and volumes"
 	@echo "  make test-shell        - Start test container shell for debugging"
 	@echo ""
 	@echo "Generated Reports (in test-reports/ directory):"
+	@echo "All Tests (make test):"
 	@echo "  - test_report.html           - Comprehensive HTML test report"
 	@echo "  - test_results.xml           - JUnit XML format (CI/CD)"
 	@echo "  - test_report.json           - JSON format test results"
-	@echo "  - unit_test_report.html      - Unit tests only"
-	@echo "  - integration_test_report.html - Integration tests only"
 	@echo "  - coverage_html/index.html   - Code coverage report"
+	@echo "  - coverage.xml/coverage.lcov - Coverage in XML/LCOV formats"
+	@echo "Unit Tests (make test-unit):"
+	@echo "  - unit_test_report.html      - Unit tests HTML report"
+	@echo "  - unit_coverage_html/index.html - Unit tests coverage"
+	@echo "Integration Tests (make test-integration):"
+	@echo "  - integration_test_report.html - Integration tests HTML report"
+	@echo "  - integration_coverage_html/index.html - Integration tests coverage"
