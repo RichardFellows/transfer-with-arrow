@@ -266,6 +266,145 @@ ArrowInvalid: Schema at index 0 was different
 - **Existing tables**: "already exists within the given MetaData" → CONFLICT RISK
 - **Schema state**: New tables create clean schema state, existing tables restore conflicted state
 
+## DDL Schema Analysis
+
+### Source Table Structure (ProductionTestTable)
+
+**Table Composition** (from earlier successful creation):
+```sql
+-- 118 total columns with complex production data types
+CREATE TABLE dbo.ProductionTestTable (
+    -- Primary key and identifiers (3 columns)
+    Id BIGINT IDENTITY(1,1) PRIMARY KEY,
+    ExternalId UNIQUEIDENTIFIER DEFAULT NEWID(),
+    RecordCode VARCHAR(255) NOT NULL,
+    
+    -- High-precision financial data (10 columns)
+    Amount1 DECIMAL(38,18), Amount2 DECIMAL(38,18), ..., Amount10 DECIMAL(38,18),
+    
+    -- Currency fields (5 columns) 
+    Price1 MONEY, Price2 MONEY, ..., Price5 MONEY,
+    
+    -- Large text fields (7 columns)
+    Description1 VARCHAR(MAX), Description2 VARCHAR(MAX), ..., Comments2 VARCHAR(MAX),
+    
+    -- Standard text fields (35 columns)
+    Code1 VARCHAR(255), Code2 VARCHAR(255), ..., Field30 VARCHAR(255),
+    
+    -- Integer counters and values (30 columns)
+    Counter1 INT, Counter2 INT, ..., Value20 INT,
+    
+    -- Boolean flags (20 columns)
+    IsActive BIT, IsProcessed BIT, ..., Flag10 BIT,
+    
+    -- Date/time tracking (7 columns)
+    CreatedDate DATETIME2, ModifiedDate DATETIME2, ..., EndDate DATETIME2,
+    
+    -- Rate and percentage fields (8 columns)
+    Rate1 DECIMAL(10,4), Rate2 DECIMAL(10,4), ..., Percentage3 DECIMAL(5,2)
+);
+```
+
+**Data Type Breakdown**:
+- **DECIMAL(38,18)**: 10 columns (high-precision financial)
+- **MONEY**: 5 columns (currency values)
+- **VARCHAR(MAX)**: 7 columns (large text fields)
+- **VARCHAR(255)**: 35 columns (standard text)
+- **INT**: 30 columns (counters and values)
+- **BIT**: 20 columns (boolean flags)
+- **DATETIME2**: 7 columns (timestamps)
+- **DECIMAL(10,4)**: 5 columns (rates)
+- **DECIMAL(5,2)**: 3 columns (percentages)
+- **BIGINT**: 1 column (primary key)
+- **UNIQUEIDENTIFIER**: 1 column (external ID)
+
+**Total**: 118 columns, 50,000 rows
+
+### Destination Table Schema (from PyArrow Error)
+
+**Expected Schema** (from error logs):
+```
+table:
+id: int64 not null
+external_id: string
+record_code: string not null
+amount1: decimal128(38, 18)
+amount2: decimal128(38, 18)
+...
+price1: decimal128(10, 4)  ← ❌ MISMATCH: Expected MONEY→decimal128(10,4)
+price2: decimal128(10, 4)  ← ❌ MISMATCH: Expected MONEY→decimal128(10,4)
+...
+_dlt_load_id: dictionary<values=string, indices=int8, ordered=0> not null
+```
+
+**Actual File Schema** (from PyArrow source):
+```
+file:
+id: int64 not null
+external_id: string  
+record_code: string not null
+amount1: decimal128(38, 18)
+amount2: decimal128(38, 18)
+...
+price1: decimal128(19, 4)  ← ❌ CONFLICT: MONEY mapped to decimal128(19,4)
+price2: decimal128(19, 4)  ← ❌ CONFLICT: MONEY mapped to decimal128(19,4)
+...
+_dlt_load_id: dictionary<values=string, indices=int8, ordered=0> not null
+```
+
+### Root Cause: MONEY Data Type Precision Mapping
+
+**The Critical Issue**:
+1. **Previous runs**: DLT stored MONEY columns as `decimal128(10,4)` in destination schema
+2. **Current run**: DLT mapped MONEY columns as `decimal128(19,4)` from source
+3. **PyArrow conflict**: Cannot reconcile `decimal128(10,4)` vs `decimal128(19,4)`
+
+**MONEY Type Behavior**:
+- SQL Server MONEY = 8 bytes = approx 19 digits precision, 4 scale
+- DLT's PyArrow mapping can vary: sometimes `(10,4)`, sometimes `(19,4)`
+- Schema evolution fails when precision mapping changes between runs
+
+**Why Fresh Tables Work**:
+- No existing schema state to conflict with
+- PyArrow creates schema from scratch based on current data
+- Whatever precision mapping DLT chooses becomes the baseline
+
+### Production Migration Strategy
+
+**For Your Environment with MONEY, DECIMAL(38,18), VARCHAR(MAX), 100+ columns:**
+
+1. **Clean Migration Approach** ✅ **RECOMMENDED**:
+   ```sql
+   -- Before migration, ensure clean destination
+   DROP TABLE IF EXISTS your_destination_table;
+   -- Clear any DLT schema state if accessible
+   -- Run migration with disposition: "replace"
+   ```
+
+2. **MONEY Column Handling** ⚠️ **IMPORTANT**:
+   - DLT's MONEY→decimal128 mapping can be inconsistent
+   - First migration establishes the precision baseline
+   - Subsequent runs must match exactly or fail
+   - **Solution**: Use DECIMAL(19,4) instead of MONEY in source if possible
+
+3. **Schema Consistency Validation**:
+   ```sql
+   -- Validate MONEY column precision after first successful run
+   SELECT 
+       COLUMN_NAME, 
+       NUMERIC_PRECISION, 
+       NUMERIC_SCALE 
+   FROM INFORMATION_SCHEMA.COLUMNS 
+   WHERE TABLE_NAME = 'your_table' 
+   AND DATA_TYPE = 'decimal'
+   AND COLUMN_NAME LIKE '%price%';
+   ```
+
+4. **Monitoring Schema Evolution**:
+   - Watch for "Table already exists within MetaData" warnings
+   - Look for precision mismatches in PyArrow error logs
+   - Monitor DLT schema hash changes between runs
+
 ### Performance Optimization
 - **< 25 columns**: Optimal performance (~1000 rows/sec)
 - **25-50 columns**: Good performance (~800 rows/sec)  
