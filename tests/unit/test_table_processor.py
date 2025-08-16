@@ -66,8 +66,13 @@ class TestTableProcessorCustomSQL:
             enabled=True
         )
         
-        with patch('src.pipeline.table_processor.sql_database') as mock_sql_db, \
+        with patch('src.utils.logging_setup.get_logger') as mock_get_logger, \
+             patch('src.pipeline.table_processor.sql_database') as mock_sql_db, \
              patch('src.pipeline.table_processor.dlt') as mock_dlt:
+            
+            # Setup logger mock BEFORE creating processor
+            mock_table_logger = Mock()
+            mock_get_logger.return_value = mock_table_logger
             
             # Setup mocks
             mock_source = Mock()
@@ -78,19 +83,22 @@ class TestTableProcessorCustomSQL:
             mock_dlt.pipeline.return_value = mock_pipeline
             mock_dlt.destinations.sqlalchemy.return_value = "mock_dest"
             
-            with patch('src.utils.logging_setup.get_logger') as mock_get_logger:
-                mock_table_logger = Mock()
-                mock_get_logger.return_value = mock_table_logger
-                
-                processor = TableProcessor(basic_config, mock_logger)
-                
-                # This should fail initially as custom SQL path isn't fully implemented
-                source = processor._create_table_source("TestTable", table_config)
-                
-                # Verify custom SQL was used
-                assert mock_source.with_resources.called
-                # Should log custom SQL usage (line 110)
-                mock_table_logger.info.assert_called()
+            processor = TableProcessor(basic_config, mock_logger)
+            
+            # Replace the table_logger with our mock after processor creation
+            processor.table_logger = mock_table_logger
+            
+            # Verify the custom SQL is set
+            assert table_config.custom_sql is not None
+            assert table_config.custom_sql == "SELECT id, name FROM dbo.TestTable WHERE active = 1"
+            
+            # This should trigger custom SQL path 
+            source = processor._create_table_source("TestTable", table_config)
+            
+            # Verify custom SQL was used
+            assert mock_source.with_resources.called
+            # Should log custom SQL usage (line 110)
+            mock_table_logger.info.assert_called_with("Using custom SQL for TestTable")
 
 
 @pytest.mark.unit 
@@ -181,28 +189,38 @@ class TestTableProcessorIncrementalLoading:
             enabled=True
         )
         
-        with patch('src.pipeline.table_processor.dlt') as mock_dlt, \
-             patch('src.utils.logging_setup.get_logger') as mock_get_logger:
+        with patch('src.utils.logging_setup.get_logger') as mock_get_logger, \
+             patch('src.pipeline.table_processor.dlt') as mock_dlt:
             
+            # Setup logger mock BEFORE creating processor
             mock_table_logger = Mock()
             mock_get_logger.return_value = mock_table_logger
             
-            mock_source = Mock(spec=[])  # Source with no attributes
-            mock_source.resources = {}  # Empty resources dict
-            
             processor = TableProcessor(basic_config, mock_logger)
+            
+            # Replace the table_logger with our mock after processor creation
+            processor.table_logger = mock_table_logger
+            
+            # Create a source mock that will trigger the ValueError path
+            mock_source = Mock(spec=[])  # Source with no attributes
+            # Manually ensure the hasattr checks will fail
+            type(mock_source).TestTable = property(lambda x: None)
+            type(mock_source).testtable = property(lambda x: None) 
+            type(mock_source).resources = property(lambda x: {})
             
             # Should catch the ValueError and log error (lines 203-206)
             result = processor._apply_incremental_loading(mock_source, table_config)
             
             # Should log error about resource not found
-            mock_table_logger.error.assert_called()
-            mock_table_logger.warning.assert_called()
+            assert mock_table_logger.error.called
+            assert mock_table_logger.warning.called
+            assert result == mock_source  # Should return original source
     
     def test_incremental_loading_configuration_error(self, basic_config, mock_logger):
         """Test incremental loading when configuration fails - error handling lines 203-207."""
         table_config = TableConfig(
             source_table="dbo.TestTable",
+            destination_table="test_table",
             incremental=IncrementalConfig(
                 enabled=True,
                 strategy=IncrementalStrategy.TIMESTAMP,
@@ -212,27 +230,37 @@ class TestTableProcessorIncrementalLoading:
             enabled=True
         )
         
-        with patch('src.pipeline.table_processor.dlt') as mock_dlt, \
-             patch('src.utils.logging_setup.get_logger') as mock_get_logger:
+        with patch('src.utils.logging_setup.get_logger') as mock_get_logger, \
+             patch('src.pipeline.table_processor.dlt') as mock_dlt:
             
+            # Setup logger mock BEFORE creating processor
             mock_table_logger = Mock()
             mock_get_logger.return_value = mock_table_logger
             
+            processor = TableProcessor(basic_config, mock_logger)
+            
+            # Replace the table_logger with our mock after processor creation
+            processor.table_logger = mock_table_logger
+            
             mock_source = Mock()
             mock_resource = Mock()
-            mock_source.testtable = mock_resource
+            # Set up the source to have the resource attribute using destination table name
+            # The table_config.destination_table is "test_table" from basic_config fixture
+            mock_source.test_table = mock_resource
+            
+            # Mock DLT incremental to avoid import issues
+            mock_dlt.sources.incremental.return_value = "mock_incremental"
             
             # Make apply_hints raise an exception
             mock_resource.apply_hints.side_effect = Exception("DLT configuration error")
-            
-            processor = TableProcessor(basic_config, mock_logger)
             
             # Should catch exception and log error (lines 203-207)
             result = processor._apply_incremental_loading(mock_source, table_config)
             
             # Should log error and warning
-            mock_table_logger.error.assert_called()
-            mock_table_logger.warning.assert_called()
+            assert mock_table_logger.error.called
+            assert mock_table_logger.warning.called
+            assert result == mock_source  # Should return original source
 
 
 @pytest.mark.unit
@@ -425,20 +453,36 @@ class TestTableProcessorSizeEstimation:
         mock_sa.create_engine.return_value = mock_engine
         
         mock_conn = Mock()
-        mock_engine.connect.return_value.__enter__.return_value = mock_conn
+        mock_engine.connect.return_value = mock_conn
+        mock_conn.__enter__ = Mock(return_value=mock_conn)
+        mock_conn.__exit__ = Mock(return_value=None)
         
         mock_result = Mock()
         mock_result.scalar.return_value = 1000
         mock_conn.execute.return_value = mock_result
         
-        with patch.dict('sys.modules', {'sqlalchemy': mock_sa}):
+        # Mock the text function
+        mock_text_obj = Mock()
+        mock_sa.text.return_value = mock_text_obj
+        
+        with patch.dict('sys.modules', {'sqlalchemy': mock_sa}), \
+             patch('src.utils.logging_setup.get_logger') as mock_get_logger:
+            
+            mock_table_logger = Mock()
+            mock_get_logger.return_value = mock_table_logger
+            
             processor = TableProcessor(basic_config, mock_logger)
+            
+            # Replace the table_logger with our mock after processor creation
+            processor.table_logger = mock_table_logger
             
             # Should execute count query and return result (line 318, 323-324)
             result = processor.estimate_table_size("TestTable", table_config)
             
             assert result == 1000
+            mock_sa.text.assert_called_with("SELECT COUNT(*) FROM dbo.TestTable")
             mock_conn.execute.assert_called_once()
+            mock_table_logger.info.assert_called_with("Estimated row count for TestTable: 1,000")
     
     def test_estimate_table_size_with_where_clause(self, basic_config, mock_logger):
         """Test size estimation with WHERE clause - line 318."""
@@ -453,21 +497,38 @@ class TestTableProcessorSizeEstimation:
         mock_sa.create_engine.return_value = mock_engine
         
         mock_conn = Mock()
-        mock_engine.connect.return_value.__enter__.return_value = mock_conn
+        mock_engine.connect.return_value = mock_conn
+        mock_conn.__enter__ = Mock(return_value=mock_conn)
+        mock_conn.__exit__ = Mock(return_value=None)
         
         mock_result = Mock()
         mock_result.scalar.return_value = 500
         mock_conn.execute.return_value = mock_result
         
-        with patch.dict('sys.modules', {'sqlalchemy': mock_sa}):
+        # Mock the text function to return the query string
+        mock_text_obj = Mock()
+        mock_text_obj.__str__ = Mock(return_value="SELECT COUNT(*) FROM dbo.TestTable WHERE active = 1")
+        mock_sa.text.return_value = mock_text_obj
+        
+        with patch.dict('sys.modules', {'sqlalchemy': mock_sa}), \
+             patch('src.utils.logging_setup.get_logger') as mock_get_logger:
+            
+            mock_table_logger = Mock()
+            mock_get_logger.return_value = mock_table_logger
+            
             processor = TableProcessor(basic_config, mock_logger)
+            
+            # Replace the table_logger with our mock after processor creation
+            processor.table_logger = mock_table_logger
             
             # Should use WHERE clause in count query (line 318)
             result = processor.estimate_table_size("TestTable", table_config)
             
             # Verify WHERE clause was included in query
-            call_args = mock_conn.execute.call_args[0][0]
-            assert "WHERE active = 1" in str(call_args)
+            assert result == 500
+            mock_sa.text.assert_called_with("SELECT COUNT(*) FROM dbo.TestTable WHERE active = 1")
+            mock_conn.execute.assert_called_once()
+            mock_table_logger.info.assert_called_with("Estimated row count for TestTable: 500")
     
     def test_estimate_table_size_error_handling(self, basic_config, mock_logger):
         """Test size estimation error handling - lines 329-331."""
@@ -487,11 +548,14 @@ class TestTableProcessorSizeEstimation:
             
             processor = TableProcessor(basic_config, mock_logger)
             
+            # Replace the table_logger with our mock after processor creation
+            processor.table_logger = mock_table_logger
+            
             # Should handle error and return None (lines 329-331)
             result = processor.estimate_table_size("TestTable", table_config)
             
             assert result is None
-            mock_table_logger.warning.assert_called_once()
+            mock_table_logger.warning.assert_called_with("Failed to estimate size for TestTable: Database connection failed")
 
 
 @pytest.mark.unit
@@ -506,8 +570,13 @@ class TestTableProcessorEdgeCases:
             enabled=True
         )
         
-        with patch('src.pipeline.table_processor.sql_database') as mock_sql_db, \
+        with patch('src.utils.logging_setup.get_logger') as mock_get_logger, \
+             patch('src.pipeline.table_processor.sql_database') as mock_sql_db, \
              patch('src.pipeline.table_processor.dlt') as mock_dlt:
+            
+            # Setup logger mock BEFORE creating processor
+            mock_table_logger = Mock()
+            mock_get_logger.return_value = mock_table_logger
             
             mock_source = Mock()
             mock_sql_db.return_value = mock_source
@@ -517,17 +586,16 @@ class TestTableProcessorEdgeCases:
             mock_dlt.pipeline.return_value = mock_pipeline
             mock_dlt.destinations.sqlalchemy.return_value = "mock_dest"
             
-            with patch('src.utils.logging_setup.get_logger') as mock_get_logger:
-                mock_table_logger = Mock()
-                mock_get_logger.return_value = mock_table_logger
-                
-                processor = TableProcessor(basic_config, mock_logger)
-                
-                # Should log WHERE clause application (line 116)
-                source = processor._create_table_source("TestTable", table_config)
-                
-                # Verify WHERE clause was logged
-                mock_table_logger.info.assert_called()
+            processor = TableProcessor(basic_config, mock_logger)
+            
+            # Replace the table_logger with our mock after processor creation
+            processor.table_logger = mock_table_logger
+            
+            # Should log WHERE clause application (line 116)
+            source = processor._create_table_source("TestTable", table_config)
+            
+            # Verify WHERE clause was logged
+            mock_table_logger.info.assert_called_with("Applied WHERE clause for TestTable: status = 'active'")
     
     def test_convert_initial_value_none(self, basic_config, mock_logger):
         """Test None initial value - line 222."""
