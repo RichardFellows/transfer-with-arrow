@@ -171,19 +171,100 @@ The **ProductionTestTable failure** from earlier appears to be related to:
 
 ## Troubleshooting Guide
 
-### Error: "PyArrow schema mismatch"
-**Cause**: Schema evolution conflict  
+### Error: "PyArrow schema mismatch" 
+**Cause**: Schema evolution conflict between existing destination table and source data
+
+**Actual Error Log Example**:
+```
+2025-08-16 21:11:45,800 - pipeline.table_processor - ERROR - ❌ Table processing failed: ProductionTestTable
+ArrowInvalid: Schema at index 0 was different: 
+table:
+id: int64 not null
+external_id: string
+record_code: string not null
+amount1: decimal128(38, 18)
+amount2: decimal128(38, 18)
+...
+price1: decimal128(10, 4)
+price2: decimal128(10, 4)
+...
+_dlt_load_id: dictionary<values=string, indices=int8, ordered=0> not null vs. 
+file:
+id: int64 not null
+external_id: string
+record_code: string not null
+amount1: decimal128(38, 18)
+amount2: decimal128(38, 18)
+...
+price1: decimal128(10, 4)
+price2: decimal128(10, 4)
+...
+_dlt_load_id: dictionary<values=string, indices=int8, ordered=0> not null
+```
+
+**DLT Processing Logs Leading to Error**:
+```
+2025-08-16 21:11:43,467|[INFO]|528|dlt|pipeline.py|_restore_state_from_destination:1597|The state was restored from the destination sqlalchemy (dlt.destinations.sqlalchemy):stackoverflow_data
+
+2025-08-16 21:11:33,868|[INFO]|528|dlt|sqlalchemy_job_client.py|update_stored_schema:195|Schema with hash Le0Nr5Z9eO+F7rYZqJ2/Iyu52zVdtuEDlIdboH1EOmo= not found in storage, upgrading
+
+2025-08-16 21:11:34,028|[INFO]|528|dlt|load.py|submit_job:169|Will load file 1755378693.511349/new_jobs/production_test_table.b6a8283b3a.0.parquet with table name production_test_table
+
+/usr/local/lib/python3.10/site-packages/dlt/destinations/impl/sqlalchemy/load_jobs.py:68: SAWarning: Table 'production_test_table' already exists within the given MetaData - not copying.
+```
+
+**Root Cause Analysis**:
+- DLT maintains internal schema state in destination database
+- PyArrow requires exact schema matching for parquet file operations  
+- **Critical Issue**: "Table already exists within the given MetaData" warning indicates schema conflict
+- DLT tried to restore existing schema state but encountered mismatch with current source data
+- The error shows "table" vs "file" schema - indicating destination vs source mismatch
+- Schema hash mismatch: DLT expected one schema version but found a different structure
+
 **Solution**: 
-1. Drop destination table
-2. Clear DLT schema state  
-3. Rerun with clean schema
+1. Drop destination table: `DROP TABLE production_test_table`
+2. Clear DLT schema state (if accessible)
+3. Use `disposition: "replace"` to force schema reset
+4. Rerun with clean schema
 
 ### Error: "Table processing failed"
-**Cause**: Usually schema-related, not data-related  
+**Cause**: Usually schema-related, not data-related
+
+**Actual Error Pattern**:
+```
+2025-08-16 21:11:45,802 - pipeline - ERROR - ❌ Pipeline error occurred
+2025-08-16 21:11:45,802 - pipeline - ERROR -   Error type: Exception
+2025-08-16 21:11:45,802 - pipeline - ERROR -   Error message: Table processing failed for: ProductionTestTable
+```
+
 **Solution**:
-1. Check for existing table conflicts
-2. Use `disposition: "replace"`
+1. Check for existing table conflicts in destination
+2. Use `disposition: "replace"` consistently
 3. Verify source-destination schema alignment
+4. Consider dropping and recreating destination tables for clean start
+
+### Success vs Failure Log Comparison
+
+**✅ Successful Processing (Test_25_Complex - Fresh Table)**:
+```
+2025-08-16 21:11:33,792|[INFO]|dlt|normalize.py|clean_x_normalizer:168|Table test_25_complex has seen data for the first time with load id 1755378693.511349
+2025-08-16 21:11:33,793|[INFO]|dlt|normalize.py|spool_files:202|Saving schema sql_database with version 13:14
+2025-08-16 21:11:34,911|[INFO]|dlt|load.py|complete_jobs:460|Job for test_25_complex.b6a8283b3a.parquet completed in load 1755378693.511349
+✅ Status: SUCCESS - Duration: 3.63s
+```
+
+**❌ Failed Processing (ProductionTestTable - Schema Conflict)**:
+```
+2025-08-16 21:11:43,467|[INFO]|dlt|pipeline.py|_restore_state_from_destination:1597|The state was restored from the destination
+/usr/local/lib/python3.10/site-packages/dlt/destinations/impl/sqlalchemy/load_jobs.py:68: SAWarning: Table 'production_test_table' already exists within the given MetaData
+ArrowInvalid: Schema at index 0 was different
+❌ Status: FAILED - Duration: 3.05s - Error: Table processing failed
+```
+
+**Key Differences**:
+- **Fresh tables**: "has seen data for the first time" → SUCCESS
+- **Existing tables**: "already exists within the given MetaData" → CONFLICT RISK
+- **Schema state**: New tables create clean schema state, existing tables restore conflicted state
 
 ### Performance Optimization
 - **< 25 columns**: Optimal performance (~1000 rows/sec)
