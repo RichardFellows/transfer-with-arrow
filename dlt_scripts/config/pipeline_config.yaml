@@ -147,6 +147,15 @@ tables:
       enabled: false
     enabled: true
 
+  # Test table that triggers schema evolution error
+  Test_10_Complex:
+    source_table: "dbo.Test_10_Complex"
+    destination_table: "test_10_complex"
+    disposition: "replace"
+    incremental:
+      enabled: false
+    enabled: true
+
 verification:
   enabled: true
   tolerance: 0

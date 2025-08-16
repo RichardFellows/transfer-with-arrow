@@ -1,0 +1,58 @@
+# Test configuration for simple table loading
+pipeline:
+  name: "test_migration"
+  dataset_name: "test_data"
+  
+# Enable fewer tables for testing
+tables:
+  enabled:
+    - TestCustomers
+    - TestOrders  
+    - TestEvents
+    - TestCategories
+  
+  # Configure loading patterns for each table
+  configurations:
+    TestCustomers:
+      source_table: "dbo.TestCustomers"
+      destination_table: "test_customers"
+      write_disposition: "replace"
+      # No incremental loading - full refresh
+      
+    TestOrders:
+      source_table: "dbo.TestOrders"
+      destination_table: "test_orders"
+      write_disposition: "merge"
+      incremental:
+        strategy: "timestamp"
+        column: "LastModified"
+        initial_value: "2024-01-01T00:00:00"
+        
+    TestEvents:
+      source_table: "dbo.TestEvents"
+      destination_table: "test_events"
+      write_disposition: "append"
+      incremental:
+        strategy: "timestamp"
+        column: "Timestamp"
+        initial_value: "2024-01-01T00:00:00"
+        
+    TestCategories:
+      source_table: "dbo.TestCategories"
+      destination_table: "test_categories"
+      write_disposition: "replace"
+      # Small table for quick testing
+
+# DLT settings optimized for small test data
+dlt:
+  backend: "pyarrow"
+  file_format: "parquet"
+  chunk_size: 1000  # Smaller chunks for test data
+  reflection_level: "full_with_precision"
+
+# Disable verification to focus on loading
+verification:
+  enabled: false
+
+logging:
+  level: "INFO"
