@@ -312,23 +312,6 @@ python /app/run_pipeline.py run --environment dev  # (if dev config has DEBUG le
 python /app/run_pipeline.py run --tables MyTable --environment dev
 ```
 
-## 📚 Migration from Legacy Script
-
-The new configuration system is backward compatible. To migrate:
-
-1. **Create Configuration**: Convert command-line arguments to YAML config
-2. **Environment Variables**: Use same connection string environment variables
-3. **Test**: Validate with `make pipeline-validate`
-4. **Run**: Use new commands instead of legacy ones
-
-### Legacy vs New Commands
-
-| Legacy | New Configuration-Driven |
-|--------|--------------------------|
-| `make test-copy` | `make pipeline-run` |
-| `make test-users` | `make pipeline-run-users` |
-| `make verify` | Built into pipeline with `verification.enabled: true` |
-
 ## 🆘 Troubleshooting
 
 ### Common Issues

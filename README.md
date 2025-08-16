@@ -1,10 +1,13 @@
 # Transfer with Arrow
 
-A data migration project that transfers StackOverflow database tables from a source MSSQL database to a destination MSSQL database using the DLT (Data Loading Tool) framework with PyArrow backend.
+A configuration-driven data migration project that transfers StackOverflow database tables from a source MSSQL database to a destination MSSQL database using the DLT (Data Loading Tool) framework with PyArrow backend and flexible YAML configuration.
 
 ## Overview
 
-This project demonstrates a complete data pipeline solution using modern tools:
+This project demonstrates a complete, enterprise-ready data pipeline solution using modern tools:
+- **🎯 Configuration-Driven Architecture** with YAML-based pipeline definitions
+- **🔧 Environment Support** for dev/staging/prod deployments
+- **⚡ Advanced Features** including incremental loading, data verification, and monitoring
 - **DLT (Data Loading Tool)** for efficient data extraction and loading
 - **PyArrow** backend for high-performance data processing
 - **Docker** for containerized, reproducible environments
@@ -17,9 +20,9 @@ This project demonstrates a complete data pipeline solution using modern tools:
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
 │   Source DB     │    │   DLT Runner    │    │ Destination DB  │
 │                 │    │                 │    │                 │
-│ StackOverflow   │───▶│ Python + DLT    │───▶│   TargetDB      │
-│ Mini Database   │    │ PyArrow Backend │    │                 │
-│ (Port 1433)     │    │                 │    │ (Port 1434)     │
+│ StackOverflow   │───▶│ Configuration-  │───▶│   TargetDB      │
+│ Mini Database   │    │ Driven Pipeline │    │                 │
+│ (Port 1433)     │    │ PyArrow Backend │    │ (Port 1434)     │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
 ```
 
@@ -37,20 +40,26 @@ make setup
 
 ### 2. Run Data Migration
 ```bash
-# Copy all default tables
-make test-copy
+# Run pipeline with default configuration
+make pipeline-run
 
-# Copy specific tables
-make test-users
+# Run with development environment settings
+make pipeline-run-dev
 
-# Test incremental loading
-make test-incremental
+# Run specific tables only
+make pipeline-run-users
 ```
 
-### 3. Verify Migration
+### 3. Validate and Monitor
 ```bash
-# Verify data was copied correctly
-make verify
+# Validate configuration
+make pipeline-validate
+
+# Show pipeline statistics
+make pipeline-stats
+
+# View detailed logs
+make logs
 ```
 
 ## Commands Reference
@@ -61,11 +70,19 @@ make verify
 - `make setup` - Setup databases and restore StackOverflow backup
 - `make clean` - Stop and remove all containers and volumes
 
-### Data Migration
-- `make test-copy` - Run full copy of all StackOverflow tables
-- `make test-users` - Copy only the Users table (useful for testing)
-- `make test-incremental` - Test incremental loading on Posts table
-- `make verify` - Verify data copy by comparing row counts between source and destination
+### Data Pipeline
+- `make pipeline-run` - Run pipeline with default configuration
+- `make pipeline-run-dev` - Run pipeline with development environment settings
+- `make pipeline-run-users` - Run pipeline for Users table only
+- `make pipeline-validate` - Validate pipeline configuration
+- `make pipeline-stats` - Show pipeline statistics and table information
+- `make pipeline-help` - Show detailed CLI help
+
+### Common Aliases
+- `make test-copy` - Run full pipeline (alias for pipeline-run)
+- `make test-users` - Run Users table only (alias for pipeline-run-users)
+- `make test-incremental` - Run incremental loading example
+- `make verify` - Run pipeline with verification (alias for pipeline-run)
 
 ### Development
 - `make logs` - Show container logs
@@ -81,53 +98,112 @@ make verify
 - `make test-clean` - Clean test containers and volumes
 - `make test-shell` - Start test container shell for debugging
 
-## Data Pipeline Configuration
+## Configuration-Driven Pipeline
 
-The DLT pipeline includes:
+The pipeline system provides advanced configuration capabilities through YAML files:
+
+### Core Features
+- **🎯 YAML Configuration**: Complete pipeline definition in `dlt_scripts/config/pipeline_config.yaml`
+- **🔧 Environment Support**: Environment-specific configurations (dev/staging/prod) with overrides
+- **⚡ Advanced Incremental Loading**: Multiple strategies (timestamp, sequence, custom) per table
+- **✅ Data Verification**: Built-in verification with custom checks and tolerance settings
+- **📊 Comprehensive Logging**: Structured logging with progress tracking and monitoring
+- **🔍 Schema Validation**: Pydantic-based configuration validation with detailed error reporting
+
+### Default Configuration
 - **Backend**: PyArrow for efficient data processing
-- **File Format**: Parquet for optimized storage
-- **Chunk Size**: 10,000 rows per chunk for large tables
+- **File Format**: Parquet for optimized storage and compression
+- **Chunk Size**: 10,000 rows per chunk (configurable per environment)
 - **Default Tables**: Users, Posts, Comments, Votes, Badges, PostTags, Tags
-- **Write Modes**: Replace (default), Append, Merge
+- **Write Modes**: Replace, Append, Merge (configurable per table)
+- **Connection Management**: Environment variable substitution with secure credential handling
 
-### Direct Script Usage
-You can also run the migration script directly:
+### Direct Pipeline Usage
+You can run the pipeline directly with advanced options:
 
 ```bash
-docker exec dlt-runner python /app/copy_stackoverflow.py [options]
+docker exec dlt-runner python /app/run_pipeline.py [command] [options]
 ```
 
+**Commands:**
+- `run` - Execute the data migration pipeline
+- `validate` - Validate configuration without running
+- `stats` - Show configuration overview and statistics
+
 **Options:**
-- `--tables [table1 table2 ...]` - Specify tables to copy
-- `--incremental` - Use incremental loading
-- `--verify` - Verify copy after completion
-- `--disposition [replace|append|merge]` - Write disposition (default: replace)
+- `--config, -c` - Configuration file (default: pipeline_config.yaml)
+- `--environment, -e` - Environment configuration (dev, staging, prod, etc.)
+- `--tables, -t` - Specific tables to process
+- `--output, -o` - Save results to JSON file
 
 **Examples:**
 ```bash
-# Copy specific tables
-docker exec dlt-runner python /app/copy_stackoverflow.py --tables Users Posts
+# Run with default configuration
+docker exec dlt-runner python /app/run_pipeline.py run
 
-# Incremental load with verification
-docker exec dlt-runner python /app/copy_stackoverflow.py --tables Posts --incremental --verify
+# Run with development environment
+docker exec dlt-runner python /app/run_pipeline.py run --environment dev
 
-# Append mode
-docker exec dlt-runner python /app/copy_stackoverflow.py --disposition append
+# Run specific tables only
+docker exec dlt-runner python /app/run_pipeline.py run --tables Users Posts
+
+# Validate production configuration
+docker exec dlt-runner python /app/run_pipeline.py validate --environment prod
+
+# Save results to file
+docker exec dlt-runner python /app/run_pipeline.py run --output results.json
 ```
+
+## Configuration Guide
+
+### Basic Configuration Structure
+```yaml
+pipeline:
+  name: "my_migration"
+  dataset_name: "target_data"
+  chunk_size: 10000
+
+connections:
+  source:
+    connection_string: "${SOURCE_CONNECTION_STRING}"
+  destination:
+    connection_string: "${DEST_CONNECTION_STRING}"
+
+tables:
+  Users:
+    source_table: "dbo.Users"
+    disposition: "replace"
+    enabled: true
+
+verification:
+  enabled: true
+  tolerance: 0
+
+logging:
+  level: "INFO"
+```
+
+### Environment-Specific Configurations
+Create environment-specific overrides in `dlt_scripts/config/environments/`:
+- `dev.yaml` - Development settings
+- `prod.yaml` - Production settings
+- `test.yaml` - Test environment settings
+
+See `dlt_scripts/README.md` for comprehensive configuration documentation.
 
 ## Testing Framework
 
 ### Unit Tests
 Fast tests with mocked dependencies:
-- Test individual function logic
-- Validate configuration and error handling
+- Configuration system validation
+- Pipeline component logic testing
 - No external dependencies required
 - Run with: `make test-unit`
 
 ### Integration Tests
 End-to-end testing with real databases:
 - Use SQL Server containers via testcontainers
-- Test complete data migration workflows
+- Test complete configuration-driven migration workflows
 - Verify data integrity and pipeline functionality
 - Run with: `make test-integration`
 
@@ -135,6 +211,7 @@ End-to-end testing with real databases:
 - `pytest` - Testing framework
 - `pytest-mock` - Mocking utilities
 - `testcontainers` - Docker container management for tests
+- `pydantic` - Configuration validation testing
 - Coverage reporting with `pytest-cov`
 
 ## Database Configuration
@@ -148,11 +225,21 @@ End-to-end testing with real databases:
 
 ```
 transfer-with-arrow/
-├── dlt_scripts/              # DLT pipeline scripts and config
-│   ├── copy_stackoverflow.py # Main migration script
-│   ├── requirements.txt      # Python dependencies
+├── dlt_scripts/              # Pipeline system
+│   ├── config/              # Configuration files
+│   │   ├── pipeline_config.yaml      # Main configuration
+│   │   └── environments/             # Environment-specific configs
+│   │       ├── dev.yaml
+│   │       ├── prod.yaml
+│   │       └── test.yaml
+│   ├── src/                 # Source code
+│   │   ├── pipeline/        # Core pipeline components
+│   │   └── utils/           # Utility modules
+│   ├── run_pipeline.py      # Main CLI entry point
+│   ├── requirements.txt     # Python dependencies
 │   ├── requirements-test.txt # Test dependencies
-│   └── .dlt/                # DLT configuration files
+│   ├── README.md           # Detailed configuration guide
+│   └── .dlt/               # DLT configuration files
 ├── tests/                   # Test suite
 │   ├── unit/               # Unit tests
 │   ├── integration/        # Integration tests
@@ -177,14 +264,16 @@ transfer-with-arrow/
 5. Run tests: `pytest tests/`
 
 ### Adding New Tables
-1. Update the default tables list in `copy_stackoverflow.py`
-2. Add corresponding test data in integration test fixtures
-3. Update documentation
+1. Update the table configuration in `dlt_scripts/config/pipeline_config.yaml`
+2. Configure incremental loading, verification, and other settings as needed
+3. Add corresponding test data in integration test fixtures
+4. Update documentation
 
 ### Extending Pipeline
-- Modify `copy_stackoverflow.py` for new data sources
-- Update DLT configuration in `.dlt/` directory
-- Add environment variables to `docker-compose.yaml`
+- Modify configuration files for new data sources and transformations
+- Add custom verification checks in configuration
+- Update environment-specific settings for different deployments
+- Extend Pydantic models for new configuration options
 
 ## Troubleshooting
 
@@ -197,6 +286,15 @@ make logs
 
 # Restart environment
 make clean && make setup
+```
+
+**Configuration validation errors:**
+```bash
+# Validate current configuration
+make pipeline-validate
+
+# Check specific environment
+docker exec dlt-runner python /app/run_pipeline.py validate --environment dev
 ```
 
 **Database connection errors:**
@@ -222,8 +320,9 @@ pytest tests/ -v --tb=long
 
 **Performance issues:**
 - Ensure project is on native filesystem (not mounted from Windows)
-- Adjust chunk_size in `copy_stackoverflow.py` for your data size
+- Adjust `chunk_size` in configuration for your data size
 - Monitor Docker resource allocation
+- Use environment-specific configurations to optimize for different deployments
 
 ## Contributing
 
@@ -231,7 +330,8 @@ pytest tests/ -v --tb=long
 2. Create a feature branch
 3. Add tests for new functionality
 4. Ensure all tests pass: `make test`
-5. Submit a pull request
+5. Update configuration documentation as needed
+6. Submit a pull request
 
 ## License
 

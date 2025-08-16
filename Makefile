@@ -7,7 +7,7 @@ help:
 	@echo "  make logs         - Show container logs"
 	@echo "  make clean        - Stop and remove all containers and volumes"
 	@echo ""
-	@echo "Configuration-driven Data Pipeline:"
+	@echo "Data Pipeline:"
 	@echo "  make pipeline-run          - Run pipeline with default config"
 	@echo "  make pipeline-run-dev      - Run pipeline with dev environment"
 	@echo "  make pipeline-run-users    - Run pipeline with only Users table"
@@ -15,11 +15,11 @@ help:
 	@echo "  make pipeline-stats        - Show pipeline statistics"
 	@echo "  make pipeline-help         - Show pipeline CLI help"
 	@echo ""
-	@echo "Legacy Commands (redirected to new pipeline):"
-	@echo "  make test-copy    - ⚠️  Use 'make pipeline-run' instead"
-	@echo "  make test-users   - ⚠️  Use 'make pipeline-run-users' instead"
-	@echo "  make test-incremental - ⚠️  Configure in YAML and use 'make pipeline-run'"
-	@echo "  make verify       - ⚠️  Enable verification in config and use 'make pipeline-run'"
+	@echo "Common Aliases:"
+	@echo "  make test-copy             - Run full pipeline (alias for pipeline-run)"
+	@echo "  make test-users            - Run Users table only (alias for pipeline-run-users)"
+	@echo "  make test-incremental      - Run incremental loading example"
+	@echo "  make verify                - Run pipeline with verification (alias for pipeline-run)"
 	@echo ""
 	@echo "Testing commands:"
 	@echo "  make test         - Run all tests (unit + integration)"
@@ -43,26 +43,17 @@ setup: up
 	docker exec mssql-source /scripts/restore_backup.sh
 	@echo "Setup complete!"
 
-# Legacy commands (replaced by new configuration-driven pipeline)
+# Convenient aliases for common tasks
 test-copy:
-	@echo "⚠️  Legacy command: Use 'make pipeline-run' instead"
-	@echo "   New command provides equivalent functionality with better configurability"
 	make pipeline-run
 
 test-users:
-	@echo "⚠️  Legacy command: Use 'make pipeline-run-users' instead"  
-	@echo "   New command provides equivalent functionality with better configurability"
 	make pipeline-run-users
 
 test-incremental:
-	@echo "⚠️  Legacy command: Configure incremental loading in YAML config and use 'make pipeline-run'"
-	@echo "   New system provides more advanced incremental loading options"
 	docker exec dlt-runner python /app/run_pipeline.py run --tables Posts --environment dev
 
 verify:
-	@echo "⚠️  Legacy command: Verification is now built into the pipeline"
-	@echo "   Enable verification in configuration: verification.enabled: true"
-	@echo "   Running pipeline with verification enabled..."
 	make pipeline-run
 
 logs:

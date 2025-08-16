@@ -4,14 +4,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a data migration project that transfers StackOverflow database tables from a source MSSQL database to a destination MSSQL database using the DLT (Data Loading Tool) framework with PyArrow backend. The project uses Docker containers to set up the entire environment including source database, destination database, and the DLT runner.
+This is a configuration-driven data migration project that transfers StackOverflow database tables from a source MSSQL database to a destination MSSQL database using the DLT (Data Loading Tool) framework with PyArrow backend. The project uses Docker containers to set up the entire environment and provides a flexible YAML-based configuration system for defining migration workflows.
 
 ## Architecture
 
 - **Source Database**: MSSQL Server container with StackOverflowMini sample database (restored from backup)
 - **Destination Database**: MSSQL Server container with TargetDB database
-- **DLT Runner**: Python container that runs the data migration scripts using DLT framework
-- **Migration Script**: `dlt_scripts/copy_stackoverflow.py` - Main script handling table copying with configurable options
+- **DLT Runner**: Python container that runs the configuration-driven migration pipeline
+- **Configuration System**: YAML-based pipeline configuration with environment support and advanced features
 
 ## Common Commands
 
@@ -21,20 +21,13 @@ This is a data migration project that transfers StackOverflow database tables fr
 - `make setup` - Setup databases and restore StackOverflow backup
 - `make clean` - Stop and remove all containers and volumes
 
-### Configuration-Driven Data Pipeline Commands
+### Data Pipeline Commands
 - `make pipeline-run` - Run pipeline with default configuration
 - `make pipeline-run-dev` - Run pipeline with development environment settings
 - `make pipeline-run-users` - Run pipeline for Users table only
 - `make pipeline-validate` - Validate pipeline configuration
 - `make pipeline-stats` - Show pipeline statistics and table information
 - `make pipeline-help` - Show detailed CLI help
-
-### Legacy Commands (Redirected)
-⚠️ **Note**: Legacy commands have been replaced by the new configuration-driven system:
-- `make test-copy` → `make pipeline-run` (with full table configuration)
-- `make test-users` → `make pipeline-run-users` 
-- `make test-incremental` → Configure incremental loading in YAML and use `make pipeline-run`
-- `make verify` → Enable `verification.enabled: true` in config and use `make pipeline-run`
 
 ### Development Commands
 - `make logs` - Show container logs
@@ -50,8 +43,8 @@ This is a data migration project that transfers StackOverflow database tables fr
 - `make test-clean` - Clean test containers and volumes
 - `make test-shell` - Start test container shell for debugging
 
-### Advanced Pipeline Usage
-Execute the configuration-driven pipeline directly in the DLT runner container:
+### Direct Pipeline Usage
+Execute the pipeline directly in the DLT runner container:
 ```bash
 docker exec dlt-runner python /app/run_pipeline.py [command] [options]
 ```
@@ -85,9 +78,9 @@ docker exec dlt-runner python /app/run_pipeline.py run --tables Users Posts
 docker exec dlt-runner python /app/run_pipeline.py validate --environment prod
 ```
 
-## Configuration-Driven Data Pipeline Architecture
+## Data Pipeline Architecture
 
-The new pipeline system provides enhanced flexibility through YAML-based configuration:
+The pipeline system provides enhanced flexibility through YAML-based configuration:
 
 ### Core Features
 - **🎯 YAML Configuration**: Complete pipeline definition in `dlt_scripts/config/pipeline_config.yaml`
@@ -97,7 +90,7 @@ The new pipeline system provides enhanced flexibility through YAML-based configu
 - **📊 Comprehensive Logging**: Structured logging with progress tracking and monitoring
 - **🔍 Schema Validation**: Pydantic-based configuration validation with detailed error reporting
 
-### Default Pipeline Configuration
+### Pipeline Configuration
 - **Backend**: PyArrow for efficient data processing
 - **File Format**: Parquet for optimized storage and compression
 - **Chunk Size**: 10,000 rows per chunk (configurable per environment)
