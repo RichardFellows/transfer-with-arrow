@@ -42,6 +42,9 @@ COPY dlt_scripts/*.py /app/
 COPY dlt_scripts/src /app/src
 COPY dlt_scripts/config /app/config
 
+# Copy coverage configuration
+COPY .coveragerc /app/.coveragerc
+
 # Set Python path
 ENV PYTHONPATH=/app:/tests
 

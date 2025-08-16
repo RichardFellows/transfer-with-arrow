@@ -103,11 +103,13 @@ test-build:
 test: test-build
 	@echo "Running all tests with reports..."
 	@mkdir -p test-reports
-	docker-compose -f docker-compose.test.yaml run --rm -v $(PWD)/test-reports:/test-reports dlt-runner-test pytest /tests -v --html=/test-reports/test_report.html --self-contained-html --junitxml=/test-reports/test_results.xml --json-report --json-report-file=/test-reports/test_report.json
+	docker-compose -f docker-compose.test.yaml run --rm -v $(PWD)/test-reports:/test-reports dlt-runner-test pytest /tests -v --cov=/app/src --cov=/app/run_pipeline.py --cov-report=html:/test-reports/coverage_html --cov-report=term --cov-report=xml:/test-reports/coverage.xml --html=/test-reports/test_report.html --self-contained-html --junitxml=/test-reports/test_results.xml --json-report --json-report-file=/test-reports/test_report.json --cov-fail-under=60
 	@echo "Test reports generated in test-reports/ directory:"
 	@echo "  - HTML Report: test-reports/test_report.html"
 	@echo "  - JUnit XML: test-reports/test_results.xml"
 	@echo "  - JSON Report: test-reports/test_report.json"
+	@echo "  - Coverage HTML: test-reports/coverage_html/index.html"
+	@echo "  - Coverage XML: test-reports/coverage.xml"
 
 test-unit: test-build
 	@echo "Running unit tests with reports..."
@@ -127,7 +129,7 @@ test-clean:
 test-coverage: test-build
 	@echo "Running tests with coverage and reports..."
 	@mkdir -p test-reports
-	docker-compose -f docker-compose.test.yaml run --rm -v $(PWD)/test-reports:/test-reports dlt-runner-test pytest /tests -v --cov=copy_stackoverflow --cov-report=html:/test-reports/coverage_html --cov-report=term --cov-report=xml:/test-reports/coverage.xml --html=/test-reports/coverage_test_report.html --self-contained-html --junitxml=/test-reports/coverage_test_results.xml
+	docker-compose -f docker-compose.test.yaml run --rm -v $(PWD)/test-reports:/test-reports dlt-runner-test pytest /tests -v --cov=/app/src --cov=/app/run_pipeline.py --cov-report=html:/test-reports/coverage_html --cov-report=term --cov-report=xml:/test-reports/coverage.xml --html=/test-reports/coverage_test_report.html --self-contained-html --junitxml=/test-reports/coverage_test_results.xml --cov-fail-under=0
 	@echo "Coverage reports generated in test-reports/ directory:"
 	@echo "  - HTML Coverage: test-reports/coverage_html/index.html"
 	@echo "  - XML Coverage: test-reports/coverage.xml"
