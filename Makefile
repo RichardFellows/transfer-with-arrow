@@ -30,12 +30,12 @@ help:
 	@echo "  make test-clean   - Clean test containers and volumes"
 
 up:
-	docker-compose up -d
+	docker-compose up -d --remove-orphans
 	@echo "Waiting for services to be healthy..."
 	@sleep 10
 
 down:
-	docker-compose down
+	docker-compose down --remove-orphans
 
 setup: up
 	@echo "Setting up databases..."
@@ -61,7 +61,7 @@ logs:
 	docker-compose logs -f
 
 clean:
-	docker-compose down -v
+	docker-compose down -v --remove-orphans
 # 	rm -rf backups/*.bak
 
 shell:
