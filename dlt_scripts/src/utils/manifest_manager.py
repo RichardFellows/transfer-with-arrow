@@ -124,7 +124,8 @@ class ManifestManager:
         table_name: str,
         source_query: Optional[str] = None,
         watermark_value: Optional[Union[str, int]] = None,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
+        created_at: Optional[datetime] = None
     ) -> ExtractionBatch:
         """
         Create a new extraction batch record.
@@ -144,7 +145,7 @@ class ManifestManager:
                 batch_id=batch_id,
                 table_name=table_name,
                 status=BatchStatus.PENDING,
-                created_at=datetime.now(),
+                created_at=created_at if created_at is not None else datetime.now(),
                 source_query=source_query,
                 watermark_value=watermark_value,
                 metadata=metadata or {}
@@ -194,12 +195,21 @@ class ManifestManager:
                     return False
                 
                 # Update status
-                completed_at_str = completed_at.isoformat() if completed_at else None
-                cursor.execute("""
-                    UPDATE extraction_batches 
-                    SET status = ?, error_message = ?, completed_at = ?
-                    WHERE batch_id = ?
-                """, (status.value, error_message, completed_at_str, batch_id))
+                if completed_at is not None:
+                    # Only update completed_at if explicitly provided
+                    completed_at_str = completed_at.isoformat()
+                    cursor.execute("""
+                        UPDATE extraction_batches 
+                        SET status = ?, error_message = ?, completed_at = ?
+                        WHERE batch_id = ?
+                    """, (status.value, error_message, completed_at_str, batch_id))
+                else:
+                    # Don't update completed_at if not provided (preserve existing value)
+                    cursor.execute("""
+                        UPDATE extraction_batches 
+                        SET status = ?, error_message = ?
+                        WHERE batch_id = ?
+                    """, (status.value, error_message, batch_id))
                 
                 conn.commit()
                 

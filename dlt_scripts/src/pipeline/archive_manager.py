@@ -113,7 +113,8 @@ class ArchiveManager:
                 table_name=table_name,
                 source_query=source_query,
                 watermark_value=watermark_value,
-                metadata=metadata
+                metadata=metadata,
+                created_at=timestamp
             )
             
             # Create archive directory
@@ -229,8 +230,8 @@ class ArchiveManager:
             if not batch:
                 raise ValueError(f"Batch {batch_id} not found")
             
-            if batch.status != BatchStatus.COMPLETED:
-                raise ValueError(f"Batch {batch_id} is not completed (status: {batch.status})")
+            if batch.status not in [BatchStatus.COMPLETED, BatchStatus.LOADED]:
+                raise ValueError(f"Batch {batch_id} is not ready for loading (status: {batch.status})")
             
             # Update status to loading
             self.manifest_manager.update_batch_status(
@@ -492,8 +493,10 @@ class ArchiveManager:
                 "issues": []
             }
             
-            # Check all completed batches
-            batches = self.manifest_manager.list_batches(status=BatchStatus.COMPLETED)
+            # Check all completed and loaded batches (both have valid files)
+            completed_batches = self.manifest_manager.list_batches(status=BatchStatus.COMPLETED)
+            loaded_batches = self.manifest_manager.list_batches(status=BatchStatus.LOADED)
+            batches = completed_batches + loaded_batches
             
             for batch in batches:
                 if not batch.file_path:

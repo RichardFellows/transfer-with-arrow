@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Extract processor for parquet-based pipeline.
+Extract processor for parquet intermediate layer.
 Handles extraction of data from source databases to parquet archive.
 """
 
@@ -10,22 +10,30 @@ from typing import Optional, Any, Dict, List, Tuple
 from datetime import datetime
 import logging
 import os
+from pathlib import Path
 
-from .config_models import ConfigurationModel, TableConfig
+from .config_models import ConfigurationModel, TableConfig, get_enabled_tables
 from .archive_manager import ArchiveManager
+from .table_processor import TableProcessor
 from ..utils.logging_setup import get_logger
-from ..utils.schema_analyzer import SchemaAnalyzer
+from ..utils.manifest_manager import BatchStatus
 
 
 class ExtractProcessor:
-    """Processes data extraction to parquet archive."""
+    """Processes data extraction from source to parquet archive."""
     
-    def __init__(self, config: ConfigurationModel, logger: Optional[logging.Logger] = None):
+    def __init__(
+        self, 
+        config: ConfigurationModel, 
+        archive_manager: Optional[ArchiveManager] = None,
+        logger: Optional[logging.Logger] = None
+    ):
         """
         Initialize extract processor.
         
         Args:
             config: Pipeline configuration
+            archive_manager: Optional archive manager instance
             logger: Logger instance
         """
         self.config = config
@@ -33,22 +41,29 @@ class ExtractProcessor:
         self.extract_logger = get_logger("extract_processor")
         
         # Initialize archive manager
-        self.archive_manager = ArchiveManager(
-            archive_path=self.config.archive.storage_path,
-            manifest_path=self.config.archive.manifest_path,
-            retention_days=self.config.archive.retention_days,
-            logger=self.extract_logger
-        )
-        
-        # Initialize schema analyzer
-        if self.config.pipeline.pipeline_mode.value in ['direct', 'extract_only', 'two_stage']:
-            source_conn = self.config.connections["source"].connection_string
-            self.schema_analyzer = SchemaAnalyzer(source_conn, self.extract_logger)
+        if archive_manager:
+            self.archive_manager = archive_manager
         else:
-            self.schema_analyzer = None
+            self.archive_manager = ArchiveManager(
+                archive_path=Path(self.config.archive.storage_path),
+                manifest_path=Path(self.config.archive.manifest_path),
+                retention_days=self.config.archive.retention_days,
+                logger=self.extract_logger
+            )
+        
+        # Initialize table processor for DLT operations
+        if 'source' in self.config.connections:
+            self.table_processor = TableProcessor(
+                config=self.config,
+                logger=self.extract_logger
+            )
+        else:
+            self.table_processor = None
         
         # Set naming convention environment variable
         os.environ["SCHEMA__NAMING"] = self.config.pipeline.naming_convention.value
+        
+        self.extract_logger.info("ExtractProcessor initialized for extract operations")
     
     def extract_table(
         self,
@@ -173,81 +188,312 @@ class ExtractProcessor:
             
             raise
     
-    def extract_tables(
+    def extract_all_tables(
         self,
-        table_names: Optional[List[str]] = None,
-        custom_metadata: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Dict[str, Any]]:
+        tables: Optional[List[str]] = None,
+        batch_metadata: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Tuple[str, Any]]:
         """
-        Extract multiple tables to parquet archive.
+        Extract all configured tables to parquet archive.
         
         Args:
-            table_names: Specific tables to extract (None = all enabled)
-            custom_metadata: Additional metadata for all extractions
+            tables: Specific tables to extract (None = all enabled tables)
+            batch_metadata: Additional metadata for the extraction batch
             
         Returns:
-            Dictionary of extraction results by table name
+            Dictionary mapping table names to (batch_id, file_info) tuples
         """
         try:
             # Get tables to extract
-            if table_names:
+            enabled_tables = get_enabled_tables(self.config)
+            
+            if tables:
+                # Filter to requested tables
                 tables_to_extract = {
-                    name: config for name, config in self.config.tables.items()
-                    if name in table_names and config.enabled
+                    name: config for name, config in enabled_tables.items()
+                    if name in tables
                 }
-                
-                # Check for invalid table names
-                invalid_tables = set(table_names) - set(self.config.tables.keys())
-                if invalid_tables:
-                    raise ValueError(f"Invalid table names: {', '.join(invalid_tables)}")
+                missing_tables = set(tables) - set(enabled_tables.keys())
+                if missing_tables:
+                    raise ValueError(f"Requested tables not found or not enabled: {missing_tables}")
             else:
-                tables_to_extract = {
-                    name: config for name, config in self.config.tables.items()
-                    if config.enabled
-                }
+                tables_to_extract = enabled_tables
             
             if not tables_to_extract:
                 raise ValueError("No tables to extract")
             
-            self.extract_logger.info(f"Starting extraction for {len(tables_to_extract)} tables")
+            self.extract_logger.info(f"Starting extraction for {len(tables_to_extract)} tables: {list(tables_to_extract.keys())}")
             
-            results = {}
-            failed_tables = []
+            # Extract each table
+            extraction_results = {}
+            total_rows = 0
             
-            # Process each table
             for table_name, table_config in tables_to_extract.items():
                 try:
-                    batch_id, table_result = self.extract_table(
+                    self.extract_logger.info(f"Extracting table: {table_name}")
+                    
+                    # Extract table data using simplified approach
+                    batch_id, file_info = self._extract_single_table(
                         table_name=table_name,
                         table_config=table_config,
-                        custom_metadata=custom_metadata
+                        batch_metadata=batch_metadata
                     )
-                    results[table_name] = table_result
+                    
+                    extraction_results[table_name] = (batch_id, file_info)
+                    total_rows += file_info.row_count or 0
+                    
+                    self.extract_logger.info(f"Successfully extracted {table_name}: {file_info.row_count:,} rows")
                     
                 except Exception as e:
                     self.extract_logger.error(f"Failed to extract table {table_name}: {e}")
-                    failed_tables.append(table_name)
-                    results[table_name] = {
-                        "status": "failed",
-                        "error": str(e),
-                        "table_name": table_name
-                    }
+                    raise
             
-            # Summary
-            successful_tables = len([r for r in results.values() if r.get("status") == "completed"])
+            self.extract_logger.info(f"Extraction completed successfully:")
+            self.extract_logger.info(f"  Tables: {len(extraction_results)}")
+            self.extract_logger.info(f"  Total rows: {total_rows:,}")
             
-            self.extract_logger.info(f"✅ Extraction completed:")
-            self.extract_logger.info(f"  Successful: {successful_tables}")
-            self.extract_logger.info(f"  Failed: {len(failed_tables)}")
-            
-            if failed_tables:
-                self.extract_logger.warning(f"  Failed tables: {', '.join(failed_tables)}")
-            
-            return results
+            return extraction_results
             
         except Exception as e:
-            self.extract_logger.error(f"❌ Extraction batch failed: {e}")
+            self.extract_logger.error(f"Failed to extract tables: {e}")
             raise
+    
+    def _extract_single_table(
+        self,
+        table_name: str,
+        table_config: TableConfig,
+        batch_metadata: Optional[Dict[str, Any]] = None
+    ) -> Tuple[str, Any]:
+        """
+        Extract a single table to parquet archive using simplified approach.
+        
+        Args:
+            table_name: Name of the table to extract
+            table_config: Table configuration
+            batch_metadata: Additional metadata for the batch
+            
+        Returns:
+            Tuple of (batch_id, file_info)
+        """
+        try:
+            # Prepare batch metadata
+            metadata = {
+                "extraction_type": "scheduled" if batch_metadata else "manual",
+                "source_table": table_config.source_table,
+                "destination_table": table_config.destination_table,
+                "pipeline_mode": self.config.pipeline.pipeline_mode.value,
+                **(batch_metadata or {})
+            }
+            
+            # Add incremental metadata if applicable
+            if table_config.incremental.enabled:
+                metadata.update({
+                    "incremental_enabled": True,
+                    "watermark_column": table_config.incremental.watermark_column,
+                    "incremental_strategy": table_config.incremental.strategy.value
+                })
+            
+            # Create extraction batch
+            batch_id, batch = self.archive_manager.create_extraction_batch(
+                table_name=table_name,
+                source_query=self._build_source_query(table_config),
+                watermark_value=self._get_current_watermark(table_config),
+                metadata=metadata
+            )
+            
+            # Extract data using table processor or simple approach
+            if self.table_processor:
+                data = self._extract_with_table_processor(table_config)
+            else:
+                data = self._extract_with_dlt_direct(table_config)
+            
+            # Store in archive
+            file_info = self.archive_manager.store_extraction_data(
+                batch_id=batch_id,
+                table_name=table_name,
+                data=data,
+                compression=self.config.archive.compression,
+                metadata={
+                    "extraction_timestamp": datetime.now().isoformat(),
+                    "row_count": len(data),
+                    "source_query": self._build_source_query(table_config)
+                }
+            )
+            
+            self.extract_logger.info(f"Table {table_name} extracted to batch {batch_id}: {file_info.row_count:,} rows")
+            
+            return batch_id, file_info
+            
+        except Exception as e:
+            self.extract_logger.error(f"Failed to extract table {table_name}: {e}")
+            raise
+    
+    def _extract_with_table_processor(self, table_config: TableConfig):
+        """Extract data using the existing TableProcessor."""
+        try:
+            # Create optimized source using table processor
+            source = self.table_processor._create_optimized_table_source(
+                table_name=table_config.source_table,
+                table_config=table_config,
+                schema_hints={}
+            )
+            
+            # Get the resource
+            resource_name = table_config.source_table.split('.')[-1]
+            if resource_name not in source.resources:
+                resource_name = table_config.source_table
+            
+            if resource_name not in source.resources:
+                raise ValueError(f"Resource {resource_name} not found in source")
+            
+            resource = source.resources[resource_name]
+            
+            # Apply incremental loading if enabled
+            if table_config.incremental.enabled:
+                resource = self.table_processor._apply_incremental_loading(
+                    table_name=table_config.source_table,
+                    table_config=table_config,
+                    resource=resource
+                )
+            
+            # Extract data to list, then convert to DataFrame
+            data_list = []
+            for item in resource:
+                data_list.append(item)
+            
+            if not data_list:
+                import pandas as pd
+                return pd.DataFrame()
+            
+            # Convert to DataFrame
+            import pandas as pd
+            data = pd.DataFrame(data_list)
+            
+            return data
+            
+        except Exception as e:
+            self.extract_logger.error(f"Failed to extract with table processor: {e}")
+            raise
+    
+    def _extract_with_dlt_direct(self, table_config: TableConfig):
+        """Extract data using DLT directly."""
+        try:
+            # Get source connection
+            source_conn = self.config.connections["source"].connection_string
+            source_schema = self.config.connections["source"].schema_name
+            
+            # Create DLT source
+            source = sql_database(
+                credentials=source_conn,
+                schema=source_schema,
+                table_names=[table_config.source_table],
+                chunk_size=self.config.pipeline.chunk_size
+            )
+            
+            # Get resource
+            resource_name = table_config.source_table.split('.')[-1]
+            if resource_name not in source.resources:
+                resource_name = table_config.source_table
+            
+            resource = source.resources[resource_name]
+            
+            # Extract data
+            data_list = []
+            for item in resource:
+                data_list.append(item)
+            
+            if not data_list:
+                import pandas as pd
+                return pd.DataFrame()
+            
+            # Convert to DataFrame
+            import pandas as pd
+            data = pd.DataFrame(data_list)
+            
+            return data
+            
+        except Exception as e:
+            self.extract_logger.error(f"Failed to extract with DLT direct: {e}")
+            raise
+    
+    def _build_source_query(self, table_config: TableConfig) -> str:
+        """Build the source query for extraction."""
+        if table_config.custom_sql:
+            return table_config.custom_sql
+        
+        # Build basic SELECT query
+        query = f"SELECT * FROM {table_config.source_table}"
+        
+        if table_config.where_clause:
+            query += f" WHERE {table_config.where_clause}"
+        
+        return query
+    
+    def _get_current_watermark(self, table_config: TableConfig) -> Optional[str]:
+        """Get the current watermark value for incremental loading."""
+        if not table_config.incremental.enabled:
+            return None
+        
+        try:
+            # Get the latest batch for this table
+            latest_batch = self.archive_manager.get_latest_batch(
+                table_name=table_config.destination_table or table_config.source_table
+            )
+            
+            if latest_batch and latest_batch.watermark_value:
+                return str(latest_batch.watermark_value)
+            
+            # Return initial value if no previous batches
+            return str(table_config.incremental.initial_value)
+            
+        except Exception as e:
+            self.extract_logger.warning(f"Failed to get watermark for {table_config.source_table}: {e}")
+            return str(table_config.incremental.initial_value)
+    
+    def get_extraction_statistics(self) -> Dict[str, Any]:
+        """Get statistics about recent extractions."""
+        try:
+            return self.archive_manager.get_archive_statistics()
+        except Exception as e:
+            self.extract_logger.error(f"Failed to get extraction statistics: {e}")
+            return {}
+    
+    def validate_extraction_readiness(self) -> Dict[str, Any]:
+        """Validate that the system is ready for extraction."""
+        validation_results = {
+            "ready": True,
+            "issues": [],
+            "warnings": []
+        }
+        
+        try:
+            # Check source connection
+            if 'source' not in self.config.connections:
+                validation_results["ready"] = False
+                validation_results["issues"].append("Source connection not configured")
+            
+            # Check archive configuration
+            if not self.config.archive.enabled:
+                validation_results["ready"] = False
+                validation_results["issues"].append("Archive not enabled")
+            
+            # Check enabled tables
+            enabled_tables = get_enabled_tables(self.config)
+            if not enabled_tables:
+                validation_results["ready"] = False
+                validation_results["issues"].append("No tables enabled for extraction")
+            
+            # Check archive storage path
+            archive_path = Path(self.config.archive.storage_path)
+            if not archive_path.exists():
+                validation_results["warnings"].append(f"Archive path does not exist: {archive_path}")
+            
+            return validation_results
+            
+        except Exception as e:
+            validation_results["ready"] = False
+            validation_results["issues"].append(f"Validation failed: {e}")
+            return validation_results
     
     def _create_dlt_source(self, table_config: TableConfig):
         """Create DLT source for table extraction."""
