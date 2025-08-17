@@ -6,23 +6,24 @@ This feature allows you to preserve original column names from the source databa
 
 ## Configuration
 
-Add the `preserve_column_names` setting to your pipeline configuration:
+Add the `naming_convention` setting to your pipeline configuration:
 
 ```yaml
 pipeline:
   name: "my_pipeline"
   dataset_name: "my_data"
   backend: "pyarrow"
-  preserve_column_names: true  # NEW: Preserve original column names
+  naming_convention: "direct"  # Preserve original column names
 ```
 
 ## How It Works
 
-When `preserve_column_names: true` is set:
+When `naming_convention: "direct"` is set:
 
-1. **Schema Analysis**: The system queries the source database to get the exact column names (case-sensitive)
-2. **Hint Generation**: For each column, it generates a DLT column hint with `name: "OriginalColumnName"`
-3. **Schema Application**: These hints are applied to the DLT resource to override default naming
+1. **Environment Variable**: Sets `SCHEMA__NAMING=direct` for DLT
+2. **Source Schema**: Applies naming convention to the source schema
+3. **Pipeline Schema**: Applies naming convention to the pipeline schema
+4. **Column Preservation**: DLT preserves original column names and case
 
 ## Example Configuration Files
 
@@ -30,7 +31,7 @@ When `preserve_column_names: true` is set:
 ```yaml
 # reporting_client_config_preserve_names.yaml
 pipeline:
-  preserve_column_names: true
+  naming_convention: "direct"
   
 tables:
   Reporting_Client:
@@ -40,7 +41,7 @@ tables:
 
 ### Expected Behavior
 
-**Without `preserve_column_names` (default):**
+**Without naming convention (default snake_case):**
 ```sql
 -- Source columns (PascalCase)
 SystemCalendarID, ClientID, AccountNumber, ClientCode, ClientName
@@ -64,29 +65,41 @@ SystemCalendarID, ClientID, AccountNumber, ClientCode, ClientName
 
 1. **Config Model** (`config_models.py`):
    ```python
+   class NamingConvention(str, Enum):
+       SNAKE_CASE = "snake_case"  # Default: lowercase with underscores
+       DIRECT = "direct"          # Preserves original names ✅
+       DUCK_CASE = "duck_case"    # Case-sensitive, Unicode support
+       SQL_CS_V1 = "sql_cs_v1"    # Case-sensitive SQL-safe
+       SQL_CI_V1 = "sql_ci_v1"    # Case-insensitive SQL-safe
+
    class PipelineConfig(BaseModel):
-       preserve_column_names: bool = Field(
-           default=False, 
-           description="Preserve original column names (disable snake_case transformation)"
+       naming_convention: NamingConvention = Field(
+           default=NamingConvention.SNAKE_CASE,
+           description="DLT naming convention for columns and tables"
        )
    ```
 
 2. **Table Processor** (`table_processor.py`):
    ```python
-   def _add_column_name_preservation_hints(self, source_table_name, schema_name, existing_hints):
-       # Query source database for original column names
-       # Generate DLT column hints with name preservation
-       for original_col_name in original_columns:
-           column_hints[original_col_name]["name"] = original_col_name
+   # Set environment variable for DLT
+   os.environ["SCHEMA__NAMING"] = self.config.pipeline.naming_convention.value
+   
+   # Apply to source schema
+   source.schema.naming.naming_convention = self.config.pipeline.naming_convention.value
+   
+   # Apply to pipeline schema  
+   pipeline.default_schema.naming.naming_convention = self.config.pipeline.naming_convention.value
    ```
 
 ### Log Output
 
 When the feature is enabled, you'll see these log messages:
 ```
-🔒 Added name preservation hints for 118 columns
-🎯 Generated 118 optimization hints for Reporting_Client
-🔧 Applying 118 schema optimizations...
+🏷️ Set environment SCHEMA__NAMING=direct
+🏷️ Setting source naming convention to: direct
+✅ Source naming convention successfully set to: direct
+🏷️ Applying naming convention: direct
+✅ Successfully set pipeline naming convention to: direct
 ```
 
 ## Current Status
@@ -139,7 +152,7 @@ FROM reporting_data_preserved.reporting_client_preserved;
 # Use preserved names for this pipeline
 pipeline:
   name: "legacy_system_migration"
-  preserve_column_names: true
+  naming_convention: "direct"
 ```
 
 ### Example 2: Default Behavior
@@ -147,7 +160,7 @@ pipeline:
 # Use DLT default snake_case transformation
 pipeline:
   name: "modern_analytics_pipeline"
-  preserve_column_names: false  # or omit (default)
+  naming_convention: "snake_case"  # or omit (default)
 ```
 
 ## Benefits When Working

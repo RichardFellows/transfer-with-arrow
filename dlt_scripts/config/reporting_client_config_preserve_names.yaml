@@ -8,8 +8,7 @@ pipeline:
   chunk_size: 10000        # Optimized for 2M+ records
   loader_file_format: "parquet"
   reflection_level: "minimal"
-  naming_convention: "direct"  # NEW: Preserve original column names using DLT's direct naming convention
-  preserve_column_names: false  # Not needed when using direct naming convention
+  naming_convention: "direct"  # Preserve original column names using DLT's direct naming convention
   backend_kwargs:
     string_storage: "pyarrow"
 

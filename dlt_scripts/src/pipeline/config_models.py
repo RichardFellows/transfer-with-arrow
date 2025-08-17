@@ -112,7 +112,6 @@ class PipelineConfig(BaseModel):
     reflection_level: str = Field(default="full_with_precision", description="Schema reflection level")
     backend_kwargs: Dict[str, Any] = Field(default_factory=lambda: {"tz": "UTC"}, description="Backend-specific kwargs")
     naming_convention: NamingConvention = Field(default=NamingConvention.SNAKE_CASE, description="DLT naming convention for columns and tables")
-    preserve_column_names: bool = Field(default=False, description="Preserve original column names (disable snake_case transformation)")
     
     @field_validator('chunk_size')
     @classmethod

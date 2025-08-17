@@ -9,7 +9,6 @@ pipeline:
   loader_file_format: "parquet"
   reflection_level: "full_with_precision"
   naming_convention: "snake_case"  # Options: snake_case, direct, duck_case, sql_cs_v1, sql_ci_v1
-  preserve_column_names: false  # Fallback method - use naming_convention: "direct" instead
   backend_kwargs:
     tz: "UTC"
 

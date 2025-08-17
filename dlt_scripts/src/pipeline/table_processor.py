@@ -137,19 +137,13 @@ class TableProcessor:
             # Analyze schema
             column_hints = self.schema_analyzer.analyze_table_schema(source_table_name, schema_name)
             
-            # Add column name preservation hints if enabled (fallback method)
-            if self.config.pipeline.preserve_column_names and self.config.pipeline.naming_convention == "snake_case":
-                self.table_logger.info("🔄 Using fallback column name preservation method...")
-                column_hints = self._add_column_name_preservation_hints(source_table_name, schema_name, column_hints)
             
             if column_hints:
                 self.table_logger.info(f"🎯 Generated {len(column_hints)} optimization hints for {table_name}")
                 
                 # Log specific optimizations
                 for col_name, hints in column_hints.items():
-                    if hints.get("name") and hints.get("name") != col_name:
-                        self.table_logger.info(f"  📛 {col_name} → {hints.get('name')} (name preserved)")
-                    elif hints.get("data_type") == "decimal":
+                    if hints.get("data_type") == "decimal":
                         precision = hints.get("precision", "?")
                         scale = hints.get("scale", "?")
                         self.table_logger.info(f"  📊 {col_name} → DECIMAL({precision},{scale})")
@@ -166,61 +160,6 @@ class TableProcessor:
             self.table_logger.warning(f"⚠️ Schema analysis failed for {table_name}: {e}")
             self.table_logger.info("📋 Continuing without schema optimization...")
             return {}
-    
-    def _add_column_name_preservation_hints(self, source_table_name: str, schema_name: str, existing_hints: Dict[str, Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
-        """
-        Add column name preservation hints to prevent DLT's automatic snake_case transformation
-        
-        Args:
-            source_table_name: Name of the source table
-            schema_name: Database schema name
-            existing_hints: Existing column hints from schema analysis
-            
-        Returns:
-            Updated column hints with name preservation
-        """
-        try:
-            import sqlalchemy as sa
-            
-            source_conn = self.config.connections["source"].connection_string
-            engine = sa.create_engine(source_conn)
-            
-            # Get original column names from source table
-            with engine.connect() as conn:
-                # Query to get actual column names (preserving case)
-                query = sa.text("""
-                    SELECT COLUMN_NAME
-                    FROM INFORMATION_SCHEMA.COLUMNS 
-                    WHERE TABLE_SCHEMA = :schema_name 
-                    AND TABLE_NAME = :table_name
-                    ORDER BY ORDINAL_POSITION
-                """)
-                
-                result = conn.execute(query, {
-                    "schema_name": schema_name,
-                    "table_name": source_table_name
-                })
-                
-                original_columns = [row[0] for row in result.fetchall()]
-            
-            # Create or update hints to preserve original column names
-            column_hints = existing_hints.copy() if existing_hints else {}
-            
-            for original_col_name in original_columns:
-                # DLT would normally convert PascalCase to snake_case
-                # We force it to keep the original name by setting explicit name hint
-                if original_col_name not in column_hints:
-                    column_hints[original_col_name] = {}
-                
-                # Set the name hint to preserve the original column name
-                column_hints[original_col_name]["name"] = original_col_name
-            
-            self.table_logger.info(f"🔒 Added name preservation hints for {len(original_columns)} columns")
-            return column_hints
-            
-        except Exception as e:
-            self.table_logger.warning(f"⚠️ Failed to add column name preservation hints: {e}")
-            return existing_hints
     
     def _create_optimized_table_source(self, table_name: str, table_config: TableConfig, schema_hints: Dict[str, Dict[str, Any]]) -> Any:
         """
