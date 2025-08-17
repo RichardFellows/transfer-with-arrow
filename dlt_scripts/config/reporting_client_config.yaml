@@ -13,9 +13,9 @@ pipeline:
 
 connections:
   source:
-    connection_string: "mssql://sa:SecurePass123@mssql-source:1433/StackOverflowMini"
+    connection_string: "mssql+pyodbc://sa:SecurePass123@mssql-source:1433/StackOverflowMini?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes&Encrypt=no"
   destination:
-    connection_string: "mssql://sa:SecurePass123@mssql-dest:1434/TargetDB"
+    connection_string: "mssql+pyodbc://sa:SecurePass123@mssql-dest:1433/TargetDB?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes&Encrypt=no"
 
 tables:
   # Production Reporting_Client table with incremental loading
@@ -46,5 +46,5 @@ verification:
 
 logging:
   level: "INFO"
-  format: "detailed"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
   log_dlt_traces: true

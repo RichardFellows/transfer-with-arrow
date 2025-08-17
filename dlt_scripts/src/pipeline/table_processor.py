@@ -189,9 +189,10 @@ class TableProcessor:
             resource_obj = resource_obj.apply_hints(columns=schema_hints)
         
         # Apply table-level configuration
+        disposition_value = table_config.disposition.value if hasattr(table_config.disposition, 'value') else table_config.disposition
         resource_obj = resource_obj.apply_hints(
             table_name=table_config.destination_table,
-            write_disposition=table_config.disposition.value
+            write_disposition=disposition_value
         )
         
         # Apply incremental loading configuration if enabled

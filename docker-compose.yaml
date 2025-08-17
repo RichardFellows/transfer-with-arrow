@@ -59,8 +59,8 @@ services:
     networks:
       - dlt-network
     environment:
-      - SOURCE_CONNECTION_STRING=mssql+pyodbc://sa:SecurePass123@mssql-source:1433/StackOverflowMini?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes&Encrypt=yes&LongAsMax=yes
-      - DEST_CONNECTION_STRING=mssql+pyodbc://sa:SecurePass123@mssql-dest:1433/TargetDB?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes&Encrypt=yes&LongAsMax=yes
+      - SOURCE_CONNECTION_STRING=mssql+pyodbc://sa:SecurePass123@mssql-source:1433/StackOverflowMini?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes&Encrypt=no&LongAsMax=yes
+      - DEST_CONNECTION_STRING=mssql+pyodbc://sa:SecurePass123@mssql-dest:1433/TargetDB?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes&Encrypt=no&LongAsMax=yes
     command: tail -f /dev/null  # Keep container running
 
 volumes:
