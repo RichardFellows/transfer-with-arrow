@@ -11,11 +11,11 @@ import logging
 import os
 from pathlib import Path
 
-from pipeline.config_models import ConfigurationModel, TableConfig, BatchSelection, PipelineMode
-from pipeline.archive_manager import ArchiveManager
-from pipeline.verification import DataVerifier
-from utils.logging_setup import get_logger
-from utils.manifest_manager import BatchStatus
+from .config_models import ConfigurationModel, TableConfig, BatchSelection, PipelineMode
+from .archive_manager import ArchiveManager
+from .verification import DataVerifier
+from ..utils.logging_setup import get_logger
+from ..utils.manifest_manager import BatchStatus
 
 
 class LoadProcessor:

@@ -10,8 +10,8 @@ from typing import Dict, List, Optional, Any, Union, Tuple
 from datetime import datetime, timedelta
 import logging
 
-from utils.parquet_utils import ParquetUtils, ParquetFileInfo
-from utils.manifest_manager import ManifestManager, ExtractionBatch, BatchStatus
+from ..utils.parquet_utils import ParquetUtils, ParquetFileInfo
+from ..utils.manifest_manager import ManifestManager, ExtractionBatch, BatchStatus
 
 
 class ArchiveManager:
