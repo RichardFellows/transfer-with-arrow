@@ -1,7 +1,7 @@
 -- Create SCD2 (Slowly Changing Dimension Type 2) table for client dimension data
 -- This table tracks historical changes to client information over time
 
-USE StackOverflowMini;
+USE ReportingDB;
 
 -- Drop table if exists
 DROP TABLE IF EXISTS dbo.Reporting_Client_SCD2;

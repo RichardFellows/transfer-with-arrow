@@ -11,7 +11,6 @@ services:
       - "1433:1433"
     volumes:
       - mssql-source-data:/var/opt/mssql
-      - ./backups:/var/opt/mssql/backups
       - ./scripts:/scripts
     networks:
       - dlt-network
@@ -54,12 +53,11 @@ services:
         condition: service_healthy
     volumes:
       - ./dlt_scripts:/app
-      - ./backups:/backups
       - ./scripts:/scripts
     networks:
       - dlt-network
     environment:
-      - SOURCE_CONNECTION_STRING=mssql+pyodbc://sa:SecurePass123@mssql-source:1433/StackOverflowMini?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes&Encrypt=no&LongAsMax=yes
+      - SOURCE_CONNECTION_STRING=mssql+pyodbc://sa:SecurePass123@mssql-source:1433/ReportingDB?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes&Encrypt=no&LongAsMax=yes
       - DEST_CONNECTION_STRING=mssql+pyodbc://sa:SecurePass123@mssql-dest:1433/TargetDB?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes&Encrypt=no&LongAsMax=yes
     command: tail -f /dev/null  # Keep container running
 

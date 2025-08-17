@@ -2,8 +2,8 @@
 # This file contains the base configuration for the data migration pipeline
 
 pipeline:
-  name: "stackoverflow_migration"
-  dataset_name: "stackoverflow_data"
+  name: "reporting_data_migration"
+  dataset_name: "reporting_data"
   chunk_size: 10000
   backend: "pyarrow"
   loader_file_format: "parquet"
@@ -19,153 +19,45 @@ connections:
     timeout: 30
   destination:
     connection_string: "${DEST_CONNECTION_STRING}"
-    schema: "stackoverflow_data"
+    schema: "reporting_data"
     timeout: 30
 
 tables:
-  Users:
-    source_table: "dbo.Users"
-    destination_table: "users"
-    disposition: "replace"
-    incremental:
-      enabled: false
-    enabled: true
-
-  Posts:
-    source_table: "dbo.Posts"
-    destination_table: "posts"
-    disposition: "merge"
+  # Production Reporting_Client table with incremental loading  
+  Reporting_Client:
+    source_table: "dbo.Reporting_Client"
+    destination_table: "reporting_client"
+    disposition: "append"  # Use append for incremental loading
     incremental:
       enabled: true
-      strategy: "timestamp"
-      watermark_column: "CreationDate"
-      initial_value: "2020-01-01T00:00:00"
-    primary_key: ["Id"]
-    # Custom WHERE clause to filter out deleted posts
-    where_clause: "IsDeleted = 0 OR IsDeleted IS NULL"
+      strategy: "sequence"  # Use sequence strategy for integer-based SystemCalendarID
+      watermark_column: "SystemCalendarID"
+      initial_value: 0  # Will be updated based on last loaded date
     enabled: true
-
-  Comments:
-    source_table: "dbo.Comments"
-    destination_table: "comments"
-    disposition: "append"
+    primary_key: ["RecordID"]
+    
+  # SCD2 (Slowly Changing Dimension Type 2) table for client dimension data
+  Reporting_Client_SCD2:
+    source_table: "dbo.Reporting_Client_SCD2"
+    destination_table: "reporting_client_scd2"
+    disposition: "append"  # Use append for SCD2 incremental loading
     incremental:
       enabled: true
-      strategy: "timestamp"
-      watermark_column: "CreationDate"
-      initial_value: "2023-01-01T00:00:00"
+      strategy: "sequence"  # Use sequence strategy for integer-based SystemCalendarID
+      watermark_column: "SystemCalendarID"  # Track by SystemCalendarID for daily loads
+      initial_value: 0  # Will be updated based on last loaded date
     enabled: true
-
-  Votes:
-    source_table: "dbo.Votes"
-    destination_table: "votes"
-    disposition: "replace"
-    incremental:
-      enabled: false
-    enabled: true
-
-  Badges:
-    source_table: "dbo.Badges"
-    destination_table: "badges"
-    disposition: "replace"
-    incremental:
-      enabled: true
-      strategy: "timestamp"
-      watermark_column: "Date"
-      initial_value: "2020-01-01T00:00:00"
-    enabled: true
-
-  PostTags:
-    source_table: "dbo.PostTags"
-    destination_table: "post_tags"
-    disposition: "replace"
-    incremental:
-      enabled: false
-    enabled: true
-
-  Tags:
-    source_table: "dbo.Tags"
-    destination_table: "tags"
-    disposition: "replace"
-    incremental:
-      enabled: false
-    enabled: true
-
-  # Test tables for debugging DLT loading issues
-  TestCategories:
-    source_table: "dbo.TestCategories"
-    destination_table: "test_categories"
-    disposition: "replace"
-    incremental:
-      enabled: false
-    enabled: true
-
-  TestCustomers:
-    source_table: "dbo.TestCustomers"
-    destination_table: "test_customers"
-    disposition: "replace"
-    incremental:
-      enabled: false
-    enabled: true
-
-  TestOrders:
-    source_table: "dbo.TestOrders"
-    destination_table: "test_orders"
-    disposition: "merge"
-    incremental:
-      enabled: true
-      strategy: "timestamp"
-      watermark_column: "LastModified"
-      initial_value: "2024-01-01T00:00:00"
-    primary_key: ["Id"]
-    enabled: true
-
-  TestEvents:
-    source_table: "dbo.TestEvents"
-    destination_table: "test_events"
-    disposition: "append"
-    incremental:
-      enabled: true
-      strategy: "timestamp"
-      watermark_column: "Timestamp"
-      initial_value: "2024-01-01T00:00:00"
-    enabled: true
-
-  # Production-scale test tables
-  ProductionTestSmall:
-    source_table: "dbo.ProductionTestSmall"
-    destination_table: "production_test_small"
-    disposition: "replace"
-    incremental:
-      enabled: false
-    enabled: true
-
-  ProductionTestTable:
-    source_table: "dbo.ProductionTestTable"
-    destination_table: "production_test_table"
-    disposition: "replace"
-    incremental:
-      enabled: false
-    enabled: true
-
-  # Test table that triggers schema evolution error
-  Test_10_Complex:
-    source_table: "dbo.Test_10_Complex"
-    destination_table: "test_10_complex"
-    disposition: "replace"
-    incremental:
-      enabled: false
-    enabled: true
+    primary_key: ["Key"]  # SCD2 surrogate key
 
 verification:
   enabled: true
   tolerance: 0
   # Verify specific tables (if not specified, all enabled tables are verified)
-  tables: ["Users", "Posts", "Comments", "Votes", "Badges", "Tags"]
+  tables: ["Reporting_Client", "Reporting_Client_SCD2"]
   custom_checks:
-    # Custom verification queries
-    users_reputation_check: "SELECT COUNT(*) FROM users WHERE reputation < 0"
-    posts_valid_dates: "SELECT COUNT(*) FROM posts WHERE creation_date > GETDATE()"
+    # Custom verification queries for reporting data
+    reporting_client_data_check: "SELECT COUNT(*) FROM reporting_client WHERE SystemCalendarID IS NULL"
+    scd2_integrity_check: "SELECT COUNT(*) FROM reporting_client_scd2 WHERE IsLatest = 1 GROUP BY ClientBusinessKey HAVING COUNT(*) > 1"
 
 logging:
   level: "INFO"

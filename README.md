@@ -1,6 +1,6 @@
 # Transfer with Arrow
 
-A configuration-driven data migration project that transfers StackOverflow database tables from a source MSSQL database to a destination MSSQL database using the DLT (Data Loading Tool) framework with PyArrow backend and flexible YAML configuration.
+A configuration-driven data migration project that transfers reporting database tables from a source MSSQL database to a destination MSSQL database using the DLT (Data Loading Tool) framework with PyArrow backend and flexible YAML configuration.
 
 ## Overview
 
@@ -20,8 +20,8 @@ This project demonstrates a complete, enterprise-ready data pipeline solution us
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
 │   Source DB     │    │   DLT Runner    │    │ Destination DB  │
 │                 │    │                 │    │                 │
-│ StackOverflow   │───▶│ Configuration-  │───▶│   TargetDB      │
-│ Mini Database   │    │ Driven Pipeline │    │                 │
+│ ReportingDB     │───▶│ Configuration-  │───▶│   TargetDB      │
+│ Database        │    │ Driven Pipeline │    │                 │
 │ (Port 1433)     │    │ PyArrow Backend │    │ (Port 1434)     │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
 ```
@@ -47,7 +47,7 @@ make pipeline-run
 make pipeline-run-dev
 
 # Run specific tables only
-make pipeline-run-users
+make reporting-client-sync
 ```
 
 ### 3. Validate and Monitor
@@ -67,20 +67,20 @@ make logs
 ### Environment Management
 - `make up` - Start all Docker containers
 - `make down` - Stop all Docker containers  
-- `make setup` - Setup databases and restore StackOverflow backup
+- `make setup` - Setup databases and create reporting tables
 - `make clean` - Stop and remove all containers and volumes
 
 ### Data Pipeline
 - `make pipeline-run` - Run pipeline with default configuration
 - `make pipeline-run-dev` - Run pipeline with development environment settings
-- `make pipeline-run-users` - Run pipeline for Users table only
+- `make reporting-client-sync` - Run Reporting_Client pipeline
 - `make pipeline-validate` - Validate pipeline configuration
 - `make pipeline-stats` - Show pipeline statistics and table information
 - `make pipeline-help` - Show detailed CLI help
 
 ### Common Aliases
 - `make test-copy` - Run full pipeline (alias for pipeline-run)
-- `make test-users` - Run Users table only (alias for pipeline-run-users)
+- `make reporting-scd2-sync` - Run Reporting_Client_SCD2 pipeline
 - `make test-incremental` - Run incremental loading example
 - `make verify` - Run pipeline with verification (alias for pipeline-run)
 
@@ -114,7 +114,7 @@ The pipeline system provides advanced configuration capabilities through YAML fi
 - **Backend**: PyArrow for efficient data processing
 - **File Format**: Parquet for optimized storage and compression
 - **Chunk Size**: 10,000 rows per chunk (configurable per environment)
-- **Default Tables**: Users, Posts, Comments, Votes, Badges, PostTags, Tags
+- **Default Tables**: Reporting_Client, Reporting_Client_SCD2
 - **Write Modes**: Replace, Append, Merge (configurable per table)
 - **Connection Management**: Environment variable substitution with secure credential handling
 
@@ -145,7 +145,7 @@ docker exec dlt-runner python /app/run_pipeline.py run
 docker exec dlt-runner python /app/run_pipeline.py run --environment dev
 
 # Run specific tables only
-docker exec dlt-runner python /app/run_pipeline.py run --tables Users Posts
+docker exec dlt-runner python /app/run_pipeline.py run --tables Reporting_Client Reporting_Client_SCD2
 
 # Validate production configuration
 docker exec dlt-runner python /app/run_pipeline.py validate --environment prod
@@ -170,9 +170,13 @@ connections:
     connection_string: "${DEST_CONNECTION_STRING}"
 
 tables:
-  Users:
-    source_table: "dbo.Users"
-    disposition: "replace"
+  Reporting_Client:
+    source_table: "dbo.Reporting_Client"
+    disposition: "append"
+    incremental:
+      enabled: true
+      strategy: "sequence"
+      watermark_column: "SystemCalendarID"
     enabled: true
 
 verification:
@@ -216,7 +220,7 @@ End-to-end testing with real databases:
 
 ## Database Configuration
 
-- **Source Database**: Port 1433, StackOverflowMini sample data
+- **Source Database**: Port 1433, ReportingDB with client tables
 - **Destination Database**: Port 1434, TargetDB (created automatically)
 - **Authentication**: SA user with password `SecurePass123`
 - **SSL/Encryption**: Configured with TrustServerCertificate for development
@@ -245,7 +249,6 @@ transfer-with-arrow/
 │   ├── integration/        # Integration tests
 │   └── fixtures/           # Test fixtures and utilities
 ├── scripts/                # Database setup scripts
-├── backups/                # Database backup files
 ├── docker-compose.yaml     # Main environment
 ├── docker-compose.test.yaml # Test environment
 ├── Dockerfile.runner       # DLT runner container

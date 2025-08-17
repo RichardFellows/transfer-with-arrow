@@ -1,7 +1,7 @@
 -- Populate SCD2 table with test data demonstrating slowly changing dimensions
 -- Creates historical records showing how client data changes over time
 
-USE StackOverflowMini;
+USE ReportingDB;
 SET NOCOUNT ON;
 SET QUOTED_IDENTIFIER ON;
 

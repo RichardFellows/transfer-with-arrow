@@ -1,7 +1,7 @@
 -- Create production-scale Reporting_Client table for comprehensive testing
 -- 100+ columns with mixed data types to simulate real reporting scenarios
 
-USE StackOverflowMini;
+USE ReportingDB;
 
 -- Drop table if exists
 DROP TABLE IF EXISTS dbo.Reporting_Client;

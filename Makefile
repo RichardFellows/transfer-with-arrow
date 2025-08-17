@@ -1,39 +1,29 @@
-.PHONY: help up down setup restore-backup test-copy clean logs test test-unit test-integration test-build test-clean reporting-setup reporting-full-sync reporting-add-day reporting-incremental reporting-verify reporting-scenario reporting-full-workflow reporting-incremental-workflow
+.PHONY: help up down setup clean logs test test-unit test-integration test-build test-clean reporting-setup reporting-client-sync reporting-scd2-sync reporting-incremental reporting-verify
 
 help:
 	@echo "Available commands:"
 	@echo "  make up           - Start all containers"
-	@echo "  make setup        - Setup databases and restore backup"
+	@echo "  make setup        - Setup databases and create reporting tables"
 	@echo "  make logs         - Show container logs"
 	@echo "  make clean        - Stop and remove all containers and volumes"
 	@echo ""
 	@echo "Data Pipeline:"
 	@echo "  make pipeline-run          - Run pipeline with default config"
-	@echo "  make pipeline-run-dev      - Run pipeline with dev environment"
-	@echo "  make pipeline-run-users    - Run pipeline with only Users table"
 	@echo "  make pipeline-validate     - Validate pipeline configuration"
 	@echo "  make pipeline-stats        - Show pipeline statistics"
 	@echo "  make pipeline-help         - Show pipeline CLI help"
 	@echo ""
-	@echo "Common Aliases:"
-	@echo "  make test-copy             - Run full pipeline (alias for pipeline-run)"
-	@echo "  make test-users            - Run Users table only (alias for pipeline-run-users)"
-	@echo "  make test-incremental      - Run incremental loading example"
-	@echo "  make verify                - Run pipeline with verification (alias for pipeline-run)"
-	@echo ""
-	@echo "Production-Scale Testing:"
-	@echo "  make reporting-setup       - Create Reporting_Client table and load 6M records"
-	@echo "  make reporting-full-sync   - Run initial full sync of Reporting_Client" 
-	@echo "  make reporting-add-day     - Add next day's data (2M records)"
-	@echo "  make reporting-incremental - Run incremental sync of new data"
-	@echo "  make reporting-verify      - Verify sync results and data integrity"
-	@echo "  make reporting-scenario    - Run complete incremental test scenario"
+	@echo "Reporting Data Pipeline:"
+	@echo "  make reporting-setup       - Create reporting tables and load test data"
+	@echo "  make reporting-client-sync - Run Reporting_Client pipeline"
+	@echo "  make reporting-scd2-sync   - Run Reporting_Client_SCD2 pipeline"
+	@echo "  make reporting-incremental - Run incremental sync for both tables"
+	@echo "  make reporting-verify      - Verify data integrity"
 	@echo ""
 	@echo "Testing commands:"
 	@echo "  make test         - Run all tests (unit + integration) with coverage"
 	@echo "  make test-unit    - Run only unit tests with coverage"
 	@echo "  make test-integration - Run only integration tests with coverage"
-	@echo "  make test-coverage - Alias for 'make test' (all commands now include coverage)"
 	@echo "  make test-build   - Build test container"
 	@echo "  make test-clean   - Clean test containers and volumes"
 
@@ -46,47 +36,36 @@ down:
 	docker-compose down --remove-orphans
 
 setup: up
-	@echo "Setting up databases..."
-	docker exec mssql-dest /scripts/setup_destination.sh
-	@echo "Restoring StackOverflow backup..."
-	docker exec mssql-source /scripts/restore_backup.sh
+	@echo "Setting up reporting database and tables..."
+	@echo "Creating ReportingDB database..."
+	docker exec mssql-source /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P "SecurePass123" -Q "IF NOT EXISTS (SELECT * FROM sys.databases WHERE name = 'ReportingDB') CREATE DATABASE ReportingDB;"
+	@echo "Creating Reporting_Client table..."
+	docker exec mssql-source /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P "SecurePass123" -d ReportingDB -i /scripts/create_reporting_client_table.sql
+	@echo "Creating Reporting_Client_SCD2 table..."
+	docker exec mssql-source /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P "SecurePass123" -d ReportingDB -i /scripts/create_reporting_client_scd2_table.sql
+	@echo "Loading test data..."
+	docker exec mssql-source /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P "SecurePass123" -d ReportingDB -i /scripts/populate_reporting_client_unified_quick.sql
+	docker exec mssql-source /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P "SecurePass123" -d ReportingDB -i /scripts/populate_reporting_client_scd2_data.sql
 	@echo "Setup complete!"
-
-# Convenient aliases for common tasks
-test-copy:
-	make pipeline-run
-
-test-users:
-	make pipeline-run-users
-
-test-incremental:
-	docker exec dlt-runner python /app/run_pipeline.py run --tables Posts --environment dev
-
-verify:
-	make pipeline-run
 
 logs:
 	docker-compose logs -f
 
 clean:
 	docker-compose down -v --remove-orphans
-# 	rm -rf backups/*.bak
 
 shell:
 	docker exec -it dlt-runner /bin/bash
 
 sql-source:
-	docker exec -it mssql-source /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'SecurePass123'
+	docker exec -it mssql-source /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P "SecurePass123" -d ReportingDB -C
 
 sql-dest:
-	docker exec -it mssql-dest /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'SecurePass123'
+	docker exec -it mssql-dest /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P "SecurePass123" -C
 
-# New configuration-driven pipeline commands
+# Configuration-driven pipeline commands
 pipeline-run:
 	docker exec dlt-runner python /app/run_pipeline.py run
-
-pipeline-run-dev:
-	docker exec dlt-runner python /app/run_pipeline.py -e dev run
 
 pipeline-validate:
 	docker exec dlt-runner python /app/run_pipeline.py validate
@@ -97,12 +76,23 @@ pipeline-stats:
 pipeline-help:
 	docker exec dlt-runner python /app/run_pipeline.py --help
 
-# Pipeline commands with specific configurations
-pipeline-run-users:
-	docker exec dlt-runner python /app/run_pipeline.py run --tables Users
+# Reporting table pipeline commands
+reporting-client-sync:
+	docker exec dlt-runner python /app/run_pipeline.py run --tables Reporting_Client
 
-pipeline-run-test:
-	docker exec dlt-runner python /app/run_pipeline.py -e test run
+reporting-scd2-sync:
+	docker exec dlt-runner python /app/run_pipeline.py run --tables Reporting_Client_SCD2
+
+reporting-incremental:
+	@echo "Running incremental sync for both reporting tables..."
+	docker exec dlt-runner python /app/run_pipeline.py run --tables Reporting_Client,Reporting_Client_SCD2
+
+reporting-verify:
+	@echo "Verifying reporting data integrity..."
+	docker exec mssql-dest /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P "SecurePass123" -d TargetDB -Q "SELECT 'Reporting_Client' as TableName, COUNT(*) as RecordCount, MIN(SystemCalendarID) as MinDate, MAX(SystemCalendarID) as MaxDate FROM reporting_data.reporting_client UNION ALL SELECT 'Reporting_Client_SCD2', COUNT(*), MIN(SystemCalendarID), MAX(SystemCalendarID) FROM reporting_data.reporting_client_scd2"
+
+reporting-setup: setup
+	@echo "Reporting tables setup complete!"
 
 # Testing targets
 test-build:
@@ -183,52 +173,3 @@ test-help:
 	@echo "  - integration_test_report.html - Integration tests HTML report"
 	@echo "  - integration_coverage_html/index.html - Integration tests coverage"
 
-# Interactive development
-shell:
-	docker exec -it dlt-runner bash
-
-# Database access for troubleshooting
-sql-source:
-	docker exec -it mssql-source /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P SecurePass123 -C
-
-sql-dest:
-	docker exec -it mssql-dest /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P SecurePass123 -C
-
-# Production-Scale Incremental Loading Test Targets
-reporting-setup:
-	@echo "Creating Reporting_Client table and loading 6M records..."
-	docker exec mssql-source /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P SecurePass123 -C -i /scripts/create_reporting_client_table.sql
-	docker exec mssql-source /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P SecurePass123 -C -i /scripts/populate_reporting_client_data.sql
-	@echo "Reporting_Client setup complete! 6M records loaded across 3 days."
-
-reporting-full-sync:
-	@echo "Running initial full synchronization of Reporting_Client..."
-	docker exec dlt-runner python /app/run_pipeline.py --config /app/config/reporting_client_config.yaml --tables Reporting_Client
-	@echo "Full sync complete!"
-
-reporting-add-day:
-	@echo "Adding next day's data (2M records)..."
-	docker exec mssql-source /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P SecurePass123 -C -i /scripts/add_next_day_data.sql
-	@echo "Next day data added! Ready for incremental sync."
-
-reporting-incremental:
-	@echo "Running incremental synchronization (new records only)..."
-	docker exec dlt-runner python /app/run_pipeline.py --config /app/config/reporting_client_config.yaml --tables Reporting_Client
-	@echo "Incremental sync complete!"
-
-reporting-verify:
-	@echo "Verifying sync results and data integrity..."
-	docker exec dlt-runner python /scripts/verify_incremental_sync.py
-	@echo "Verification complete!"
-
-reporting-scenario:
-	@echo "Running complete incremental loading test scenario..."
-	docker exec dlt-runner python /scripts/run_incremental_test_scenario.py
-	@echo "Complete scenario test finished!"
-
-# Convenience targets for step-by-step testing
-reporting-full-workflow: reporting-setup reporting-full-sync reporting-verify
-	@echo "Full workflow (setup + sync + verify) completed!"
-
-reporting-incremental-workflow: reporting-add-day reporting-incremental reporting-verify  
-	@echo "Incremental workflow (add data + sync + verify) completed!"

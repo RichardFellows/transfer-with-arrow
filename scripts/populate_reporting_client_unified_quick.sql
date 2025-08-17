@@ -1,7 +1,7 @@
 -- Quick version of unified script with small batch sizes for testing
 -- Intelligently adds 3 days of data on first run, then adds next day's data on subsequent runs
 
-USE StackOverflowMini;
+USE ReportingDB;
 SET NOCOUNT ON;
 
 -- Configuration parameters (reduced for quick testing)

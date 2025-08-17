@@ -4,11 +4,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a configuration-driven data migration project that transfers StackOverflow database tables from a source MSSQL database to a destination MSSQL database using the DLT (Data Loading Tool) framework with PyArrow backend. The project uses Docker containers to set up the entire environment and provides a flexible YAML-based configuration system for defining migration workflows.
+This is a configuration-driven data migration project that transfers reporting database tables from a source MSSQL database to a destination MSSQL database using the DLT (Data Loading Tool) framework with PyArrow backend. The project uses Docker containers to set up the entire environment and provides a flexible YAML-based configuration system for defining migration workflows.
 
 ## Architecture
 
-- **Source Database**: MSSQL Server container with StackOverflowMini sample database (restored from backup)
+- **Source Database**: MSSQL Server container with ReportingDB database
 - **Destination Database**: MSSQL Server container with TargetDB database
 - **DLT Runner**: Python container that runs the configuration-driven migration pipeline
 - **Configuration System**: YAML-based pipeline configuration with environment support and advanced features
@@ -18,13 +18,16 @@ This is a configuration-driven data migration project that transfers StackOverfl
 ### Environment Management
 - `make up` - Start all Docker containers
 - `make down` - Stop all Docker containers  
-- `make setup` - Setup databases and restore StackOverflow backup
+- `make setup` - Setup databases and create reporting tables
 - `make clean` - Stop and remove all containers and volumes
 
 ### Data Pipeline Commands
 - `make pipeline-run` - Run pipeline with default configuration
 - `make pipeline-run-dev` - Run pipeline with development environment settings
-- `make pipeline-run-users` - Run pipeline for Users table only
+- `make reporting-client-sync` - Run Reporting_Client pipeline
+- `make reporting-scd2-sync` - Run Reporting_Client_SCD2 pipeline
+- `make reporting-incremental` - Run incremental sync for both tables
+- `make reporting-verify` - Verify data integrity
 - `make pipeline-validate` - Validate pipeline configuration
 - `make pipeline-stats` - Show pipeline statistics and table information
 - `make pipeline-help` - Show detailed CLI help
@@ -72,7 +75,7 @@ docker exec dlt-runner python /app/run_pipeline.py run
 docker exec dlt-runner python /app/run_pipeline.py run --environment dev
 
 # Run specific tables only
-docker exec dlt-runner python /app/run_pipeline.py run --tables Users Posts
+docker exec dlt-runner python /app/run_pipeline.py run --tables Reporting_Client Reporting_Client_SCD2
 
 # Validate configuration
 docker exec dlt-runner python /app/run_pipeline.py validate --environment prod
@@ -94,7 +97,7 @@ The pipeline system provides enhanced flexibility through YAML-based configurati
 - **Backend**: PyArrow for efficient data processing
 - **File Format**: Parquet for optimized storage and compression
 - **Chunk Size**: 10,000 rows per chunk (configurable per environment)
-- **Default Tables**: Users, Posts, Comments, Votes, Badges, PostTags, Tags
+- **Default Tables**: Reporting_Client, Reporting_Client_SCD2
 - **Connection Management**: Environment variable substitution with secure credential handling
 - **Error Handling**: Graceful error handling with detailed logging and recovery options
 
