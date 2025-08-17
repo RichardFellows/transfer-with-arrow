@@ -8,7 +8,7 @@ pipeline:
   backend: "pyarrow"
   loader_file_format: "parquet"
   reflection_level: "full_with_precision"
-  naming_convention: "snake_case"  # Options: snake_case, direct, duck_case, sql_cs_v1, sql_ci_v1
+  naming_convention: "direct"  # Options: direct (default), snake_case, duck_case, sql_cs_v1, sql_ci_v1
   backend_kwargs:
     tz: "UTC"
 

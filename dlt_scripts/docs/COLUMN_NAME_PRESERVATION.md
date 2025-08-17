@@ -41,7 +41,7 @@ tables:
 
 ### Expected Behavior
 
-**Without naming convention (default snake_case):**
+**With snake_case naming convention:**
 ```sql
 -- Source columns (PascalCase)
 SystemCalendarID, ClientID, AccountNumber, ClientCode, ClientName
@@ -50,7 +50,7 @@ SystemCalendarID, ClientID, AccountNumber, ClientCode, ClientName
 system_calendar_id, client_id, account_number, client_code, client_name
 ```
 
-**With `naming_convention: "direct"`:**
+**With `naming_convention: "direct"` (default):**
 ```sql
 -- Source columns (PascalCase)
 SystemCalendarID, ClientID, AccountNumber, ClientCode, ClientName
@@ -155,12 +155,12 @@ pipeline:
   naming_convention: "direct"
 ```
 
-### Example 2: Default Behavior
+### Example 2: Use Snake Case (Legacy)
 ```yaml
-# Use DLT default snake_case transformation
+# Use snake_case transformation (legacy DLT default)
 pipeline:
   name: "modern_analytics_pipeline"
-  naming_convention: "snake_case"  # or omit (default)
+  naming_convention: "snake_case"
 ```
 
 ## Benefits When Working

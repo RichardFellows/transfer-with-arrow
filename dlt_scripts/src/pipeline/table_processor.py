@@ -49,11 +49,10 @@ class TableProcessor:
         if self._pipeline is None:
             dest_conn = self.config.connections["destination"].connection_string
             
-            # Set naming convention via environment variable if not default
-            if self.config.pipeline.naming_convention != "snake_case":
-                import os
-                os.environ["SCHEMA__NAMING"] = self.config.pipeline.naming_convention.value
-                self.table_logger.info(f"🏷️ Set environment SCHEMA__NAMING={self.config.pipeline.naming_convention.value}")
+            # Set naming convention via environment variable 
+            import os
+            os.environ["SCHEMA__NAMING"] = self.config.pipeline.naming_convention.value
+            self.table_logger.info(f"🏷️ Set environment SCHEMA__NAMING={self.config.pipeline.naming_convention.value}")
             
             # Configure naming convention if not using default
             pipeline_kwargs = {
@@ -64,16 +63,15 @@ class TableProcessor:
             
             self._pipeline = dlt.pipeline(**pipeline_kwargs)
             
-            # Also try to apply naming convention to the pipeline schema
-            if self.config.pipeline.naming_convention != "snake_case":
-                self.table_logger.info(f"🏷️ Applying naming convention: {self.config.pipeline.naming_convention}")
-                try:
-                    # Set the naming convention on the pipeline schema
-                    self._pipeline.default_schema.naming.naming_convention = self.config.pipeline.naming_convention.value
-                    self.table_logger.info(f"✅ Successfully set pipeline naming convention to: {self.config.pipeline.naming_convention.value}")
-                except Exception as e:
-                    self.table_logger.warning(f"⚠️ Failed to set pipeline naming convention: {e}")
-                    self.table_logger.info("📋 Continuing with environment variable approach...")
+            # Apply naming convention to the pipeline schema
+            self.table_logger.info(f"🏷️ Applying naming convention: {self.config.pipeline.naming_convention}")
+            try:
+                # Set the naming convention on the pipeline schema
+                self._pipeline.default_schema.naming.naming_convention = self.config.pipeline.naming_convention.value
+                self.table_logger.info(f"✅ Successfully set pipeline naming convention to: {self.config.pipeline.naming_convention.value}")
+            except Exception as e:
+                self.table_logger.warning(f"⚠️ Failed to set pipeline naming convention: {e}")
+                self.table_logger.info("📋 Continuing with environment variable approach...")
         
         return self._pipeline
     
@@ -194,15 +192,14 @@ class TableProcessor:
             chunk_size=self.config.pipeline.chunk_size
         )
         
-        # Apply naming convention to the source schema if not default
-        if self.config.pipeline.naming_convention != "snake_case":
-            try:
-                self.table_logger.info(f"🏷️ Setting source naming convention to: {self.config.pipeline.naming_convention}")
-                source.schema.naming.naming_convention = self.config.pipeline.naming_convention.value
-                self.table_logger.info(f"✅ Source naming convention successfully set to: {self.config.pipeline.naming_convention.value}")
-            except Exception as e:
-                self.table_logger.warning(f"⚠️ Failed to set source naming convention: {e}")
-                self.table_logger.info("📋 Continuing with default snake_case naming...")
+        # Apply naming convention to the source schema
+        try:
+            self.table_logger.info(f"🏷️ Setting source naming convention to: {self.config.pipeline.naming_convention}")
+            source.schema.naming.naming_convention = self.config.pipeline.naming_convention.value
+            self.table_logger.info(f"✅ Source naming convention successfully set to: {self.config.pipeline.naming_convention.value}")
+        except Exception as e:
+            self.table_logger.warning(f"⚠️ Failed to set source naming convention: {e}")
+            self.table_logger.info("📋 Continuing with environment variable approach...")
         
         # Configure resource for this specific table
         if table_config.custom_sql:

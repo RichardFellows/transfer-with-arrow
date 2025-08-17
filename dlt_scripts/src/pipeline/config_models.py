@@ -111,7 +111,7 @@ class PipelineConfig(BaseModel):
     loader_file_format: str = Field(default="parquet", description="File format for loading")
     reflection_level: str = Field(default="full_with_precision", description="Schema reflection level")
     backend_kwargs: Dict[str, Any] = Field(default_factory=lambda: {"tz": "UTC"}, description="Backend-specific kwargs")
-    naming_convention: NamingConvention = Field(default=NamingConvention.SNAKE_CASE, description="DLT naming convention for columns and tables")
+    naming_convention: NamingConvention = Field(default=NamingConvention.DIRECT, description="DLT naming convention for columns and tables")
     
     @field_validator('chunk_size')
     @classmethod
