@@ -140,8 +140,6 @@ test-clean:
 	docker-compose -f docker-compose.test.yaml down -v --remove-orphans
 	docker rmi transfer-with-arrow_dlt-runner-test 2>/dev/null || true
 
-test-coverage: test
-
 test-simple: test-build
 	@echo "Running all tests (simple output)..."
 	docker-compose -f docker-compose.test.yaml up --abort-on-container-exit --remove-orphans
