@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Load processor for parquet-based pipeline.
+Load processor for parquet intermediate layer.
 Handles loading of data from parquet archive to destination databases.
 """
 
@@ -11,38 +11,51 @@ import logging
 import os
 from pathlib import Path
 
-from .config_models import ConfigurationModel, TableConfig, BatchSelection, PipelineMode
+from .config_models import ConfigurationModel, TableConfig, BatchSelection, PipelineMode, get_enabled_tables
 from .archive_manager import ArchiveManager
 from .verification import DataVerifier
 from ..utils.logging_setup import get_logger
-from ..utils.manifest_manager import BatchStatus
+from ..utils.manifest_manager import BatchStatus, ExtractionBatch
 
 
 class LoadProcessor:
     """Processes data loading from parquet archive to destination."""
     
-    def __init__(self, config: ConfigurationModel, logger: Optional[logging.Logger] = None):
+    def __init__(
+        self, 
+        config: ConfigurationModel, 
+        archive_manager: Optional[ArchiveManager] = None,
+        logger: Optional[logging.Logger] = None
+    ):
         """
         Initialize load processor.
         
         Args:
             config: Pipeline configuration
+            archive_manager: Optional archive manager instance
             logger: Logger instance
         """
         self.config = config
         self.logger = logger or logging.getLogger(__name__)
         self.load_logger = get_logger("load_processor")
         
-        # Initialize archive manager
-        self.archive_manager = ArchiveManager(
-            archive_path=self.config.archive.storage_path,
-            manifest_path=self.config.archive.manifest_path,
-            retention_days=self.config.archive.retention_days,
-            logger=self.load_logger
-        )
+        # Validate destination connection is available
+        if 'destination' not in self.config.connections:
+            raise ValueError("Destination connection required for load operations")
         
-        # Initialize verifier if needed
-        if self.config.verification.enabled:
+        # Initialize archive manager
+        if archive_manager:
+            self.archive_manager = archive_manager
+        else:
+            self.archive_manager = ArchiveManager(
+                archive_path=Path(self.config.archive.storage_path),
+                manifest_path=Path(self.config.archive.manifest_path),
+                retention_days=self.config.archive.retention_days,
+                logger=self.load_logger
+            )
+        
+        # Initialize verifier if needed and source connection is available
+        if self.config.verification.enabled and 'source' in self.config.connections:
             self.verifier = DataVerifier(config, self.load_logger)
         else:
             self.verifier = None
@@ -543,3 +556,239 @@ class LoadProcessor:
                 "recommendation": "error",
                 "error": str(e)
             }
+    
+    # TDD-compatible methods to match test interface
+    
+    def get_latest_batch(self, table_name: str) -> str:
+        """Get latest batch ID for a table."""
+        try:
+            latest_batch = self.archive_manager.get_latest_batch(
+                table_name=table_name,
+                status=BatchStatus.COMPLETED
+            )
+            return latest_batch.batch_id if latest_batch else None
+        except Exception as e:
+            self.load_logger.error(f"Failed to get latest batch for {table_name}: {e}")
+            raise
+    
+    def get_batch_info(self, batch_id: str) -> Dict[str, Any]:
+        """Get information about a specific batch."""
+        try:
+            batch = self.archive_manager.manifest_manager.get_batch(batch_id)
+            if not batch:
+                raise ValueError(f"Batch not found: {batch_id}")
+            
+            return {
+                "batch_id": batch.batch_id,
+                "table_name": batch.table_name,
+                "status": batch.status.value,
+                "created_at": batch.created_at.isoformat(),
+                "completed_at": batch.completed_at.isoformat() if batch.completed_at else None,
+                "metadata": batch.metadata
+            }
+        except Exception as e:
+            self.load_logger.error(f"Failed to get batch info for {batch_id}: {e}")
+            raise
+    
+    def get_batches_in_date_range(
+        self, 
+        table_name: str, 
+        start_date: datetime, 
+        end_date: datetime
+    ) -> List[str]:
+        """Get batch IDs for a table within date range."""
+        try:
+            batches = self.archive_manager.get_batches_in_date_range(
+                table_name=table_name,
+                start_date=start_date,
+                end_date=end_date,
+                status=BatchStatus.COMPLETED
+            )
+            return [batch.batch_id for batch in batches]
+        except Exception as e:
+            self.load_logger.error(f"Failed to get batches in date range for {table_name}: {e}")
+            raise
+    
+    def load_latest_batch(self, table_name: str) -> Dict[str, Any]:
+        """Load latest batch for a table."""
+        try:
+            result = self.load_table_latest(table_name)
+            return {
+                "batch_id": result["batch_id"],
+                "table_name": result["table_name"],
+                "rows_loaded": result["row_count"],
+                "status": "success"
+            }
+        except Exception as e:
+            self.load_logger.error(f"Failed to load latest batch for {table_name}: {e}")
+            raise
+    
+    def load_batch(self, batch_id: str) -> Dict[str, Any]:
+        """Load specific batch by ID."""
+        try:
+            # Get batch info to determine table name
+            batch = self.archive_manager.manifest_manager.get_batch(batch_id)
+            if not batch:
+                raise ValueError(f"Batch not found: {batch_id}")
+            
+            # Mark batch as loading
+            self.archive_manager.manifest_manager.update_batch_status(
+                batch_id=batch_id,
+                status=BatchStatus.LOADING
+            )
+            
+            try:
+                result = self.load_table_from_batch(batch.table_name, batch_id)
+                
+                # Mark batch as loaded on success
+                self.archive_manager.manifest_manager.update_batch_status(
+                    batch_id=batch_id,
+                    status=BatchStatus.LOADED,
+                    completed_at=datetime.now()
+                )
+                
+                return {
+                    "batch_id": result["batch_id"],
+                    "table_name": result["table_name"],
+                    "rows_loaded": result["row_count"],
+                    "status": "success"
+                }
+            except Exception as e:
+                # Mark batch as failed
+                self.archive_manager.manifest_manager.update_batch_status(
+                    batch_id=batch_id,
+                    status=BatchStatus.FAILED,
+                    error_message=str(e),
+                    completed_at=datetime.now()
+                )
+                return {
+                    "batch_id": batch_id,
+                    "status": "failed",
+                    "error": str(e)
+                }
+                
+        except Exception as e:
+            self.load_logger.error(f"Failed to load batch {batch_id}: {e}")
+            raise
+    
+    def load_all_tables(self, tables: Optional[List[str]] = None) -> Dict[str, Dict[str, Any]]:
+        """Load latest batches for all or specified tables."""
+        try:
+            # Get tables to load
+            enabled_tables = get_enabled_tables(self.config)
+            
+            if tables:
+                tables_to_load = {
+                    name: config for name, config in enabled_tables.items()
+                    if name in tables
+                }
+            else:
+                tables_to_load = enabled_tables
+            
+            results = {}
+            for table_name in tables_to_load.keys():
+                try:
+                    result = self.load_latest_batch(table_name)
+                    results[table_name] = result
+                except Exception as e:
+                    results[table_name] = {
+                        "status": "failed",
+                        "error": str(e),
+                        "table_name": table_name
+                    }
+            
+            return results
+            
+        except Exception as e:
+            self.load_logger.error(f"Failed to load all tables: {e}")
+            raise
+    
+    def load_with_verification(self, table_name: str, batch_id: str) -> Dict[str, Any]:
+        """Load batch with verification."""
+        try:
+            result = self.load_table_from_batch(table_name, batch_id)
+            
+            # Add verification status
+            verification_passed = result.get("verification", {}).get("status") != "failed"
+            result["verification_passed"] = verification_passed
+            
+            return result
+            
+        except Exception as e:
+            self.load_logger.error(f"Failed to load with verification: {e}")
+            raise
+    
+    def validate_load_readiness(self) -> Dict[str, Any]:
+        """Validate that the system is ready for loading."""
+        validation_results = {
+            "ready": True,
+            "issues": [],
+            "warnings": []
+        }
+        
+        try:
+            # Check destination connection
+            if 'destination' not in self.config.connections:
+                validation_results["ready"] = False
+                validation_results["issues"].append("Destination connection not configured")
+            
+            # Check archive configuration
+            if not self.config.archive.enabled:
+                validation_results["ready"] = False
+                validation_results["issues"].append("Archive not enabled")
+            
+            # Check enabled tables
+            enabled_tables = get_enabled_tables(self.config)
+            if not enabled_tables:
+                validation_results["ready"] = False
+                validation_results["issues"].append("No tables enabled for loading")
+            
+            # Check archive access
+            archive_path = Path(self.config.archive.storage_path)
+            if not archive_path.exists():
+                validation_results["warnings"].append("Archive path not accessible")
+            
+            return validation_results
+            
+        except Exception as e:
+            validation_results["ready"] = False
+            validation_results["issues"].append(f"Validation failed: {e}")
+            return validation_results
+    
+    def get_load_statistics(self) -> Dict[str, Any]:
+        """Get statistics about load operations."""
+        try:
+            # Get basic archive statistics
+            archive_stats = self.archive_manager.get_archive_statistics()
+            
+            # Add load-specific statistics
+            return {
+                "total_batches_loaded": archive_stats.get("total_loaded_batches", 0),
+                "total_rows_loaded": archive_stats.get("total_loaded_rows", 0),
+                "last_load_time": archive_stats.get("last_load_time"),
+                "tables_loaded": list(archive_stats.get("tables", {}).keys())
+            }
+        except Exception as e:
+            self.load_logger.error(f"Failed to get load statistics: {e}")
+            return {}
+    
+    def get_table_load_history(self, table_name: str) -> List[Dict[str, Any]]:
+        """Get load history for a specific table."""
+        try:
+            # Get all loaded batches for the table
+            loaded_batches = self.archive_manager.manifest_manager.list_batches(
+                table_name=table_name,
+                status=BatchStatus.LOADED
+            )
+            
+            return [
+                {
+                    "batch_id": batch.batch_id,
+                    "loaded_at": batch.completed_at.isoformat() if batch.completed_at else None,
+                    "rows": batch.metadata.get("row_count", 0) if batch.metadata else 0
+                }
+                for batch in loaded_batches
+            ]
+        except Exception as e:
+            self.load_logger.error(f"Failed to get load history for {table_name}: {e}")
+            return []
