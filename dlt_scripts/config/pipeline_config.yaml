@@ -8,6 +8,7 @@ pipeline:
   backend: "pyarrow"
   loader_file_format: "parquet"
   reflection_level: "full_with_precision"
+  preserve_column_names: false  # Set to true to preserve original column names (disable snake_case transformation)
   backend_kwargs:
     tz: "UTC"
 

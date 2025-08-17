@@ -1,0 +1,51 @@
+# Production-scale Reporting_Client pipeline configuration with original column names preserved
+# Supports incremental loading by SystemCalendarID for daily batch processing
+
+pipeline:
+  name: "reporting_client_pipeline_preserved"
+  dataset_name: "reporting_data_preserved"
+  backend: "pyarrow"
+  chunk_size: 10000        # Optimized for 2M+ records
+  loader_file_format: "parquet"
+  reflection_level: "minimal"
+  preserve_column_names: true  # NEW: Preserve original PascalCase column names
+  backend_kwargs:
+    string_storage: "pyarrow"
+
+connections:
+  source:
+    connection_string: "mssql+pyodbc://sa:SecurePass123@mssql-source:1433/StackOverflowMini?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes&Encrypt=no"
+  destination:
+    connection_string: "mssql+pyodbc://sa:SecurePass123@mssql-dest:1433/TargetDB?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes&Encrypt=no"
+
+tables:
+  # Production Reporting_Client table with incremental loading and preserved column names
+  Reporting_Client:
+    source_table: "dbo.Reporting_Client"
+    destination_table: "reporting_client_preserved"
+    disposition: "append"  # Use append for incremental loading
+    incremental:
+      enabled: true
+      strategy: "sequence"  # Use sequence strategy for integer-based SystemCalendarID
+      watermark_column: "SystemCalendarID"  # Original PascalCase name
+      initial_value: 0  # Will be updated based on last loaded date
+    enabled: true
+    primary_key: ["RecordID"]  # Original PascalCase name
+    
+  # Full reload version for initial sync testing
+  Reporting_Client_Full:
+    source_table: "dbo.Reporting_Client"
+    destination_table: "reporting_client_full_preserved"
+    disposition: "replace"  # Full replacement for baseline
+    incremental:
+      enabled: false
+    enabled: false  # Disabled by default, enable for full reload tests
+
+verification:
+  enabled: true
+  tolerance: 0  # Expect exact match for production data
+
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  log_dlt_traces: true
