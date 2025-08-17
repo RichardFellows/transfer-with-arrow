@@ -32,6 +32,19 @@ tables:
     enabled: true
     primary_key: ["RecordID"]  # Original PascalCase name
     
+  # SCD2 (Slowly Changing Dimension Type 2) table for client dimension data
+  Reporting_Client_SCD2:
+    source_table: "dbo.Reporting_Client_SCD2"
+    destination_table: "reporting_client_scd2"
+    disposition: "append"  # Use append for SCD2 incremental loading
+    incremental:
+      enabled: true
+      strategy: "sequence"  # Use sequence strategy for integer-based SystemCalendarID
+      watermark_column: "SystemCalendarID"  # Track by SystemCalendarID for daily loads
+      initial_value: 0  # Will be updated based on last loaded date
+    enabled: true
+    primary_key: ["Key"]  # SCD2 surrogate key
+    
   # Full reload version for initial sync testing
   Reporting_Client_Full:
     source_table: "dbo.Reporting_Client"
