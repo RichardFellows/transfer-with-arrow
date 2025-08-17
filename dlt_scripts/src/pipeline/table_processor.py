@@ -49,11 +49,31 @@ class TableProcessor:
         if self._pipeline is None:
             dest_conn = self.config.connections["destination"].connection_string
             
-            self._pipeline = dlt.pipeline(
-                pipeline_name=self.config.pipeline.name,
-                destination=dlt.destinations.sqlalchemy(dest_conn),
-                dataset_name=self.config.pipeline.dataset_name
-            )
+            # Set naming convention via environment variable if not default
+            if self.config.pipeline.naming_convention != "snake_case":
+                import os
+                os.environ["SCHEMA__NAMING"] = self.config.pipeline.naming_convention.value
+                self.table_logger.info(f"🏷️ Set environment SCHEMA__NAMING={self.config.pipeline.naming_convention.value}")
+            
+            # Configure naming convention if not using default
+            pipeline_kwargs = {
+                "pipeline_name": self.config.pipeline.name,
+                "destination": dlt.destinations.sqlalchemy(dest_conn),
+                "dataset_name": self.config.pipeline.dataset_name
+            }
+            
+            self._pipeline = dlt.pipeline(**pipeline_kwargs)
+            
+            # Also try to apply naming convention to the pipeline schema
+            if self.config.pipeline.naming_convention != "snake_case":
+                self.table_logger.info(f"🏷️ Applying naming convention: {self.config.pipeline.naming_convention}")
+                try:
+                    # Set the naming convention on the pipeline schema
+                    self._pipeline.default_schema.naming.naming_convention = self.config.pipeline.naming_convention.value
+                    self.table_logger.info(f"✅ Successfully set pipeline naming convention to: {self.config.pipeline.naming_convention.value}")
+                except Exception as e:
+                    self.table_logger.warning(f"⚠️ Failed to set pipeline naming convention: {e}")
+                    self.table_logger.info("📋 Continuing with environment variable approach...")
         
         return self._pipeline
     
@@ -117,8 +137,9 @@ class TableProcessor:
             # Analyze schema
             column_hints = self.schema_analyzer.analyze_table_schema(source_table_name, schema_name)
             
-            # Add column name preservation hints if enabled
-            if self.config.pipeline.preserve_column_names:
+            # Add column name preservation hints if enabled (fallback method)
+            if self.config.pipeline.preserve_column_names and self.config.pipeline.naming_convention == "snake_case":
+                self.table_logger.info("🔄 Using fallback column name preservation method...")
                 column_hints = self._add_column_name_preservation_hints(source_table_name, schema_name, column_hints)
             
             if column_hints:
@@ -233,6 +254,16 @@ class TableProcessor:
             reflection_level=self.config.pipeline.reflection_level,
             chunk_size=self.config.pipeline.chunk_size
         )
+        
+        # Apply naming convention to the source schema if not default
+        if self.config.pipeline.naming_convention != "snake_case":
+            try:
+                self.table_logger.info(f"🏷️ Setting source naming convention to: {self.config.pipeline.naming_convention}")
+                source.schema.naming.naming_convention = self.config.pipeline.naming_convention.value
+                self.table_logger.info(f"✅ Source naming convention successfully set to: {self.config.pipeline.naming_convention.value}")
+            except Exception as e:
+                self.table_logger.warning(f"⚠️ Failed to set source naming convention: {e}")
+                self.table_logger.info("📋 Continuing with default snake_case naming...")
         
         # Configure resource for this specific table
         if table_config.custom_sql:

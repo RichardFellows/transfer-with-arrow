@@ -2,13 +2,14 @@
 # Supports incremental loading by SystemCalendarID for daily batch processing
 
 pipeline:
-  name: "reporting_client_pipeline_preserved"
-  dataset_name: "reporting_data_preserved"
+  name: "reporting_client_pipeline_direct"
+  dataset_name: "reporting_data_direct"
   backend: "pyarrow"
   chunk_size: 10000        # Optimized for 2M+ records
   loader_file_format: "parquet"
   reflection_level: "minimal"
-  preserve_column_names: true  # NEW: Preserve original PascalCase column names
+  naming_convention: "direct"  # NEW: Preserve original column names using DLT's direct naming convention
+  preserve_column_names: false  # Not needed when using direct naming convention
   backend_kwargs:
     string_storage: "pyarrow"
 
@@ -22,7 +23,7 @@ tables:
   # Production Reporting_Client table with incremental loading and preserved column names
   Reporting_Client:
     source_table: "dbo.Reporting_Client"
-    destination_table: "reporting_client_preserved"
+    destination_table: "reporting_client_direct_naming_v2"
     disposition: "append"  # Use append for incremental loading
     incremental:
       enabled: true

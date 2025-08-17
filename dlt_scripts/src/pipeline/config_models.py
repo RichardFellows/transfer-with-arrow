@@ -93,6 +93,15 @@ class TableConfig(BaseModel):
         return self
 
 
+class NamingConvention(str, Enum):
+    """Supported DLT naming conventions."""
+    SNAKE_CASE = "snake_case"      # Default: converts to lowercase with underscores
+    DUCK_CASE = "duck_case"        # Case-sensitive, allows Unicode characters  
+    DIRECT = "direct"              # Case-sensitive, preserves original names
+    SQL_CS_V1 = "sql_cs_v1"        # Case-sensitive SQL-safe identifiers
+    SQL_CI_V1 = "sql_ci_v1"        # Case-insensitive SQL-safe lowercase identifiers
+
+
 class PipelineConfig(BaseModel):
     """Main pipeline configuration."""
     name: str = Field(default="data_migration", description="Pipeline name")
@@ -102,6 +111,7 @@ class PipelineConfig(BaseModel):
     loader_file_format: str = Field(default="parquet", description="File format for loading")
     reflection_level: str = Field(default="full_with_precision", description="Schema reflection level")
     backend_kwargs: Dict[str, Any] = Field(default_factory=lambda: {"tz": "UTC"}, description="Backend-specific kwargs")
+    naming_convention: NamingConvention = Field(default=NamingConvention.SNAKE_CASE, description="DLT naming convention for columns and tables")
     preserve_column_names: bool = Field(default=False, description="Preserve original column names (disable snake_case transformation)")
     
     @field_validator('chunk_size')

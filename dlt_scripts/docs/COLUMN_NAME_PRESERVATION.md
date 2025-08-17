@@ -49,12 +49,12 @@ SystemCalendarID, ClientID, AccountNumber, ClientCode, ClientName
 system_calendar_id, client_id, account_number, client_code, client_name
 ```
 
-**With `preserve_column_names: true`:**
+**With `naming_convention: "direct"`:**
 ```sql
 -- Source columns (PascalCase)
 SystemCalendarID, ClientID, AccountNumber, ClientCode, ClientName
 
--- Destination columns (preserved)
+-- Destination columns (preserved) ✅ WORKING
 SystemCalendarID, ClientID, AccountNumber, ClientCode, ClientName
 ```
 
@@ -89,16 +89,23 @@ When the feature is enabled, you'll see these log messages:
 🔧 Applying 118 schema optimizations...
 ```
 
-## Current Status and Limitations
+## Current Status
 
-### ⚠️ Known Issue
+### ✅ **WORKING SOLUTION**
 
-**Current State**: While the implementation correctly generates column name preservation hints, DLT's PyArrow backend appears to apply its snake_case transformation at a lower level that overrides these hints.
+**Implementation Successfully Completed**: The column name preservation feature is now **fully functional** using DLT's built-in naming convention system.
 
-**Evidence**: 
-- Code successfully generates 118 name preservation hints
-- Hints are applied to DLT resources  
-- But destination still shows snake_case column names
+**Working Implementation**:
+- Uses DLT's `"direct"` naming convention instead of manual column hints
+- Sets `SCHEMA__NAMING=direct` environment variable for DLT
+- Applies naming convention at both source and pipeline levels
+- Successfully preserves original PascalCase column names
+
+**Evidence of Success**:
+- **Source columns**: `SystemCalendarID`, `ClientID`, `AccountNumber`, `ClientCode`
+- **Destination columns**: `SystemCalendarID`, `ClientID`, `AccountNumber`, `ClientCode` ✅ **PRESERVED**
+- DLT logs show: `🏷️ Set environment SCHEMA__NAMING=direct` ✅
+- DLT warning messages now show PascalCase: `Address2`, `LastLoginDate` ✅
 
 ### Possible Solutions
 
