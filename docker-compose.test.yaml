@@ -5,7 +5,7 @@ services:
     hostname: mssql-source
     environment:
       - ACCEPT_EULA=Y
-      - SA_PASSWORD=Strong!Passw0rd
+      - SA_PASSWORD=SecurePass123
       - MSSQL_PID=Express
     ports:
       - "1435:1433"
@@ -26,7 +26,7 @@ services:
     hostname: mssql-dest
     environment:
       - ACCEPT_EULA=Y
-      - SA_PASSWORD=Strong!Passw0rd
+      - SA_PASSWORD=SecurePass123
       - MSSQL_PID=Express
     ports:
       - "1436:1433"
@@ -54,8 +54,8 @@ services:
       - dlt-test-network
     environment:
       - PYTHONPATH=/app:/tests
-      - TEST_SOURCE_CONNECTION_STRING=mssql+pyodbc://sa:Strong!Passw0rd@mssql-source:1433/master?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes&Encrypt=yes
-      - TEST_DEST_CONNECTION_STRING=mssql+pyodbc://sa:Strong!Passw0rd@mssql-dest:1433/master?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes&Encrypt=yes
+      - TEST_SOURCE_CONNECTION_STRING=mssql+pyodbc://sa:SecurePass123@mssql-source:1433/master?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes&Encrypt=yes
+      - TEST_DEST_CONNECTION_STRING=mssql+pyodbc://sa:SecurePass123@mssql-dest:1433/master?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes&Encrypt=yes
     command: pytest /tests -v --tb=short
     depends_on:
       mssql-source-test:

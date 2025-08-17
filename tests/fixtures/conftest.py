@@ -12,7 +12,7 @@ from contextlib import contextmanager
 def test_source_db():
     """Create a test SQL Server container for source database."""
     with SqlServerContainer(
-        password="Strong!Passw0rd123",
+        password="SecurePass123123",
         image="mcr.microsoft.com/mssql/server:2022-latest"
     ) as sqlserver:
         # Wait for SQL Server to be ready
@@ -101,7 +101,7 @@ def test_source_db():
 def test_dest_db():
     """Create a test SQL Server container for destination database."""
     with SqlServerContainer(
-        password="Strong!Passw0rd123",
+        password="SecurePass123123",
         image="mcr.microsoft.com/mssql/server:2022-latest"
     ) as sqlserver:
         # Wait for SQL Server to be ready

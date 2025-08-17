@@ -16,7 +16,7 @@ sys.path.append('/app')
 
 from src.pipeline.table_processor import TableProcessor
 from src.pipeline.config_models import ConfigurationModel
-from src.utils.config_loader import load_configuration
+from src.pipeline.config_loader import load_config
 
 def run_sql_script(script_path: str, description: str) -> bool:
     """Run a SQL script using sqlcmd"""
@@ -26,10 +26,10 @@ def run_sql_script(script_path: str, description: str) -> bool:
         # Use docker exec to run sqlcmd in the source container
         cmd = [
             "docker", "exec", "mssql-source",
-            "/opt/mssql-tools18/bin/sqlcmd",
+            "/opt/mssql-tools/bin/sqlcmd",
             "-S", "localhost",
             "-U", "sa",
-            "-P", "Strong!Passw0rd",
+            "-P", "SecurePass123",
             "-C",  # Trust server certificate
             "-i", f"/scripts/{os.path.basename(script_path)}"
         ]
@@ -60,7 +60,7 @@ def run_pipeline_sync(config_path: str, description: str) -> bool:
     
     try:
         # Load configuration
-        config = load_configuration(config_path)
+        config = load_config(config_path)
         
         # Create table processor
         processor = TableProcessor(config, None, auto_optimize=True)  # Enable schema optimization

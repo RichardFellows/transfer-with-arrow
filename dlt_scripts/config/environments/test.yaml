@@ -8,11 +8,11 @@ pipeline:
 
 connections:
   source:
-    connection_string: "${TEST_SOURCE_CONNECTION_STRING:mssql+pyodbc://sa:Strong!Passw0rd@mssql-source:1433/master?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes&Encrypt=yes}"
+    connection_string: "${TEST_SOURCE_CONNECTION_STRING:mssql+pyodbc://sa:SecurePass123@mssql-source:1433/master?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes&Encrypt=yes}"
     schema: "dbo"
     timeout: 5
   destination:
-    connection_string: "${TEST_DEST_CONNECTION_STRING:mssql+pyodbc://sa:Strong!Passw0rd@mssql-dest:1433/master?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes&Encrypt=yes}"
+    connection_string: "${TEST_DEST_CONNECTION_STRING:mssql+pyodbc://sa:SecurePass123@mssql-dest:1433/master?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes&Encrypt=yes}"
     schema: "test_data"
     timeout: 5
 

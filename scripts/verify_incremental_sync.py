@@ -33,7 +33,7 @@ class IncrementalSyncVerifier:
         SELECT 
             SystemCalendarID,
             COUNT(*) as RecordCount
-        FROM dbo.Reporting_Client 
+        FROM dbo.Reporting_Client (NOLOCK)
         GROUP BY SystemCalendarID 
         ORDER BY SystemCalendarID
         """
@@ -224,7 +224,7 @@ class IncrementalSyncVerifier:
             NetAmount,
             IsActive,
             CreatedDate
-        FROM dbo.Reporting_Client 
+        FROM dbo.Reporting_Client (NOLOCK)
         ORDER BY RecordID
         """
         
@@ -296,7 +296,7 @@ class IncrementalSyncVerifier:
     def get_latest_calendar_id(self, database: str = "source") -> int:
         """Get the latest SystemCalendarID from source or destination"""
         if database == "source":
-            query = "SELECT MAX(SystemCalendarID) FROM dbo.Reporting_Client"
+            query = "SELECT MAX(SystemCalendarID) FROM dbo.Reporting_Client (NOLOCK)"
             engine = self.source_engine
         else:
             query = "SELECT MAX(systemcalendarid) FROM reporting_client"
@@ -359,8 +359,8 @@ def run_comprehensive_verification():
     print("=" * 80)
     
     # Connection strings (adjust as needed)
-    source_conn = "mssql+pyodbc://sa:Strong!Passw0rd@mssql-source:1433/StackOverflowMini?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes&Encrypt=no"
-    dest_conn = "mssql+pyodbc://sa:Strong!Passw0rd@mssql-dest:1434/TargetDB?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes&Encrypt=no"
+    source_conn = "mssql+pyodbc://sa:SecurePass123@mssql-source:1433/StackOverflowMini?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes&Encrypt=no"
+    dest_conn = "mssql+pyodbc://sa:SecurePass123@mssql-dest:1434/TargetDB?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes&Encrypt=no"
     
     verifier = IncrementalSyncVerifier(source_conn, dest_conn)
     

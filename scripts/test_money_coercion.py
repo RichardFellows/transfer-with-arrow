@@ -11,13 +11,13 @@ def test_money_coercion():
     # Method 1: Using DLT data type hints
     pipeline = dlt.pipeline(
         pipeline_name="money_coercion_test",
-        destination=dlt.destinations.sqlalchemy("mssql://sa:Strong!Passw0rd@mssql-dest:1433/test_db"),
+        destination=dlt.destinations.sqlalchemy("mssql://sa:SecurePass123@mssql-dest:1433/test_db"),
         dataset_name="coercion_test"
     )
     
     # Create source with explicit type hints for MONEY columns
     source = sql_database(
-        credentials="mssql://sa:Strong!Passw0rd@mssql-source:1433/StackOverflowMini",
+        credentials="mssql://sa:SecurePass123@mssql-source:1433/StackOverflowMini",
         schema="dbo",
         table_names=["ProductionTestTable"]
     ).with_resources("ProductionTestTable")

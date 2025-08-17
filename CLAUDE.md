@@ -149,6 +149,6 @@ The project includes comprehensive testing with both unit and integration tests:
 
 - Source database runs on port 1433
 - Destination database runs on port 1434 
-- Both databases use SA password: `Strong!Passw0rd`
+- Both databases use SA password: `SecurePass123`
 - DLT configuration files are in `dlt_scripts/.dlt/`
 - Connection strings include necessary MSSQL ODBC driver parameters for SSL/encryption

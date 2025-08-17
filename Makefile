@@ -76,10 +76,10 @@ shell:
 	docker exec -it dlt-runner /bin/bash
 
 sql-source:
-	docker exec -it mssql-source /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'Strong!Passw0rd'
+	docker exec -it mssql-source /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'SecurePass123'
 
 sql-dest:
-	docker exec -it mssql-dest /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'Strong!Passw0rd'
+	docker exec -it mssql-dest /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'SecurePass123'
 
 # New configuration-driven pipeline commands
 pipeline-run:
@@ -189,16 +189,16 @@ shell:
 
 # Database access for troubleshooting
 sql-source:
-	docker exec -it mssql-source /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P Strong!Passw0rd -C
+	docker exec -it mssql-source /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P SecurePass123 -C
 
 sql-dest:
-	docker exec -it mssql-dest /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P Strong!Passw0rd -C
+	docker exec -it mssql-dest /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P SecurePass123 -C
 
 # Production-Scale Incremental Loading Test Targets
 reporting-setup:
 	@echo "Creating Reporting_Client table and loading 6M records..."
-	docker exec mssql-source /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P Strong!Passw0rd -C -i /scripts/create_reporting_client_table.sql
-	docker exec mssql-source /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P Strong!Passw0rd -C -i /scripts/populate_reporting_client_data.sql
+	docker exec mssql-source /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P SecurePass123 -C -i /scripts/create_reporting_client_table.sql
+	docker exec mssql-source /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P SecurePass123 -C -i /scripts/populate_reporting_client_data.sql
 	@echo "Reporting_Client setup complete! 6M records loaded across 3 days."
 
 reporting-full-sync:
@@ -208,7 +208,7 @@ reporting-full-sync:
 
 reporting-add-day:
 	@echo "Adding next day's data (2M records)..."
-	docker exec mssql-source /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P Strong!Passw0rd -C -i /scripts/add_next_day_data.sql
+	docker exec mssql-source /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P SecurePass123 -C -i /scripts/add_next_day_data.sql
 	@echo "Next day data added! Ready for incremental sync."
 
 reporting-incremental:

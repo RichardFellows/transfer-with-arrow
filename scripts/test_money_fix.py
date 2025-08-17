@@ -17,8 +17,8 @@ def test_money_coercion_simple():
     print("🧪 Testing MONEY coercion to DECIMAL(19,4)...")
     
     # Source and destination connections
-    source_conn = "mssql://sa:Strong!Passw0rd@mssql-source:1433/StackOverflowMini"
-    dest_conn = "mssql://sa:Strong!Passw0rd@mssql-dest:1433/TargetDB"
+    source_conn = "mssql://sa:SecurePass123@mssql-source:1433/StackOverflowMini"
+    dest_conn = "mssql://sa:SecurePass123@mssql-dest:1433/TargetDB"
     
     try:
         # Create pipeline
@@ -91,7 +91,7 @@ def test_column_detection():
     
     print("🔍 Testing MONEY column detection...")
     
-    source_conn = "mssql://sa:Strong!Passw0rd@mssql-source:1433/StackOverflowMini"
+    source_conn = "mssql://sa:SecurePass123@mssql-source:1433/StackOverflowMini"
     
     try:
         # Create source to inspect schema

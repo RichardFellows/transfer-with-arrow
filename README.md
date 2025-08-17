@@ -218,7 +218,7 @@ End-to-end testing with real databases:
 
 - **Source Database**: Port 1433, StackOverflowMini sample data
 - **Destination Database**: Port 1434, TargetDB (created automatically)
-- **Authentication**: SA user with password `Strong!Passw0rd`
+- **Authentication**: SA user with password `SecurePass123`
 - **SSL/Encryption**: Configured with TrustServerCertificate for development
 
 ## Project Structure

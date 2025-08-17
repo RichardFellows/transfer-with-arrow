@@ -23,11 +23,11 @@ def create_test_config():
     
     # Connection configurations
     source_conn = ConnectionConfig(
-        connection_string="mssql://sa:Strong!Passw0rd@mssql-source:1433/StackOverflowMini"
+        connection_string="mssql://sa:SecurePass123@mssql-source:1433/StackOverflowMini"
     )
     
     dest_conn = ConnectionConfig(
-        connection_string="mssql://sa:Strong!Passw0rd@mssql-dest:1434/TargetDB"
+        connection_string="mssql://sa:SecurePass123@mssql-dest:1434/TargetDB"
     )
     
     # Pipeline configuration

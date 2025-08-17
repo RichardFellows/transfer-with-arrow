@@ -22,7 +22,7 @@ def test_schema_analysis():
     print("=" * 60)
     
     # Connection string (using container hostnames)
-    source_conn = "mssql://sa:Strong!Passw0rd@mssql-source:1433/StackOverflowMini"
+    source_conn = "mssql://sa:SecurePass123@mssql-source:1433/StackOverflowMini"
     
     try:
         # Initialize schema analyzer
@@ -144,7 +144,7 @@ def test_convenience_function():
     print("\n🧪 Testing Convenience Function")
     print("=" * 60)
     
-    source_conn = "mssql://sa:Strong!Passw0rd@mssql-source:1433/StackOverflowMini"
+    source_conn = "mssql://sa:SecurePass123@mssql-source:1433/StackOverflowMini"
     
     try:
         # Use convenience function

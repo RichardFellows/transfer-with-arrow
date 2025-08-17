@@ -14,7 +14,7 @@ def test_source_db():
     # This is simpler and more reliable than trying to create new databases
     connection_string = os.getenv(
         'TEST_SOURCE_CONNECTION_STRING',
-        "mssql+pyodbc://sa:Strong!Passw0rd@mssql-source:1433/master"
+        "mssql+pyodbc://sa:SecurePass123@mssql-source:1433/master"
         "?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes&Encrypt=yes"
     )
     
@@ -108,7 +108,7 @@ def test_dest_db():
     # Use master database for simplicity
     connection_string = os.getenv(
         'TEST_DEST_CONNECTION_STRING',
-        "mssql+pyodbc://sa:Strong!Passw0rd@mssql-dest:1433/master"
+        "mssql+pyodbc://sa:SecurePass123@mssql-dest:1433/master"
         "?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes&Encrypt=yes"
     )
     

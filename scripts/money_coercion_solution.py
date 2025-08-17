@@ -192,7 +192,7 @@ if __name__ == "__main__":
     class MockConfig:
         class connections:
             class source:
-                connection_string = "mssql://sa:Strong!Passw0rd@mssql-source:1433/StackOverflowMini"
+                connection_string = "mssql://sa:SecurePass123@mssql-source:1433/StackOverflowMini"
         class pipeline:
             backend = "pyarrow"
             chunk_size = 10000

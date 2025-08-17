@@ -352,7 +352,7 @@ if __name__ == "__main__":
     import os
     
     # Example usage
-    conn_str = "mssql://sa:Strong!Passw0rd@mssql-source:1433/StackOverflowMini"
+    conn_str = "mssql://sa:SecurePass123@mssql-source:1433/StackOverflowMini"
     
     analyzer = SchemaAnalyzer(conn_str)
     

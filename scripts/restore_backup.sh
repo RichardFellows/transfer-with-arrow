@@ -13,7 +13,7 @@ fi
 
 # Restore the backup
 echo "Restoring StackOverflowMini database..."
-/opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P 'Strong!Passw0rd' -Q "
+/opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P 'SecurePass123' -Q "
 RESTORE DATABASE [StackOverflowMini] 
 FROM DISK = N'/var/opt/mssql/backups/StackOverflowMini.bak' 
 WITH MOVE 'StackOverflowMini' TO '/var/opt/mssql/data/StackOverflowMini.mdf',
