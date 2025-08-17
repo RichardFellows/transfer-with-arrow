@@ -11,10 +11,10 @@ from datetime import datetime
 import logging
 import os
 
-from .config_models import ConfigurationModel, TableConfig
-from .archive_manager import ArchiveManager
-from ..utils.logging_setup import get_logger
-from ..utils.schema_analyzer import SchemaAnalyzer
+from pipeline.config_models import ConfigurationModel, TableConfig
+from pipeline.archive_manager import ArchiveManager
+from utils.logging_setup import get_logger
+from utils.schema_analyzer import SchemaAnalyzer
 
 
 class ExtractProcessor:
