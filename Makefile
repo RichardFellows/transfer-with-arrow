@@ -1,4 +1,4 @@
-.PHONY: help up down setup restore-backup test-copy clean logs test test-unit test-integration test-build test-clean
+.PHONY: help up down setup restore-backup test-copy clean logs test test-unit test-integration test-build test-clean reporting-setup reporting-full-sync reporting-add-day reporting-incremental reporting-verify reporting-scenario reporting-full-workflow reporting-incremental-workflow
 
 help:
 	@echo "Available commands:"
@@ -20,6 +20,14 @@ help:
 	@echo "  make test-users            - Run Users table only (alias for pipeline-run-users)"
 	@echo "  make test-incremental      - Run incremental loading example"
 	@echo "  make verify                - Run pipeline with verification (alias for pipeline-run)"
+	@echo ""
+	@echo "Production-Scale Testing:"
+	@echo "  make reporting-setup       - Create Reporting_Client table and load 6M records"
+	@echo "  make reporting-full-sync   - Run initial full sync of Reporting_Client" 
+	@echo "  make reporting-add-day     - Add next day's data (2M records)"
+	@echo "  make reporting-incremental - Run incremental sync of new data"
+	@echo "  make reporting-verify      - Verify sync results and data integrity"
+	@echo "  make reporting-scenario    - Run complete incremental test scenario"
 	@echo ""
 	@echo "Testing commands:"
 	@echo "  make test         - Run all tests (unit + integration) with coverage"
@@ -174,3 +182,53 @@ test-help:
 	@echo "Integration Tests (make test-integration):"
 	@echo "  - integration_test_report.html - Integration tests HTML report"
 	@echo "  - integration_coverage_html/index.html - Integration tests coverage"
+
+# Interactive development
+shell:
+	docker exec -it dlt-runner bash
+
+# Database access for troubleshooting
+sql-source:
+	docker exec -it mssql-source /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P Strong!Passw0rd -C
+
+sql-dest:
+	docker exec -it mssql-dest /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P Strong!Passw0rd -C
+
+# Production-Scale Incremental Loading Test Targets
+reporting-setup:
+	@echo "Creating Reporting_Client table and loading 6M records..."
+	docker exec mssql-source /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P Strong!Passw0rd -C -i /scripts/create_reporting_client_table.sql
+	docker exec mssql-source /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P Strong!Passw0rd -C -i /scripts/populate_reporting_client_data.sql
+	@echo "Reporting_Client setup complete! 6M records loaded across 3 days."
+
+reporting-full-sync:
+	@echo "Running initial full synchronization of Reporting_Client..."
+	docker exec dlt-runner python /app/run_pipeline.py --config /app/config/reporting_client_config.yaml --tables Reporting_Client
+	@echo "Full sync complete!"
+
+reporting-add-day:
+	@echo "Adding next day's data (2M records)..."
+	docker exec mssql-source /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P Strong!Passw0rd -C -i /scripts/add_next_day_data.sql
+	@echo "Next day data added! Ready for incremental sync."
+
+reporting-incremental:
+	@echo "Running incremental synchronization (new records only)..."
+	docker exec dlt-runner python /app/run_pipeline.py --config /app/config/reporting_client_config.yaml --tables Reporting_Client
+	@echo "Incremental sync complete!"
+
+reporting-verify:
+	@echo "Verifying sync results and data integrity..."
+	docker exec dlt-runner python /scripts/verify_incremental_sync.py
+	@echo "Verification complete!"
+
+reporting-scenario:
+	@echo "Running complete incremental loading test scenario..."
+	docker exec dlt-runner python /scripts/run_incremental_test_scenario.py
+	@echo "Complete scenario test finished!"
+
+# Convenience targets for step-by-step testing
+reporting-full-workflow: reporting-setup reporting-full-sync reporting-verify
+	@echo "Full workflow (setup + sync + verify) completed!"
+
+reporting-incremental-workflow: reporting-add-day reporting-incremental reporting-verify  
+	@echo "Incremental workflow (add data + sync + verify) completed!"
