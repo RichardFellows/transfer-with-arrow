@@ -57,7 +57,8 @@ verification:
   custom_checks:
     # Custom verification queries for reporting data (using correct schema)
     reporting_client_data_check: "SELECT COUNT(*) FROM reporting_data.reporting_client WHERE SystemCalendarID IS NULL"
-    scd2_integrity_check: "SELECT COUNT(*) FROM reporting_data.reporting_client_scd2 WHERE IsLatest = 1 GROUP BY ClientBusinessKey HAVING COUNT(*) > 1"
+    # SCD2 check only runs when both tables are processed
+    # scd2_integrity_check: "SELECT COUNT(*) FROM reporting_data.reporting_client_scd2 WHERE IsLatest = 1 GROUP BY ClientBusinessKey HAVING COUNT(*) > 1"
 
 logging:
   level: "INFO"

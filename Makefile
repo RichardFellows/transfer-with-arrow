@@ -87,7 +87,7 @@ reporting-scd2-sync:
 
 reporting-incremental:
 	@echo "Running incremental sync for both reporting tables..."
-	docker exec dlt-runner python /app/run_pipeline.py run --tables Reporting_Client,Reporting_Client_SCD2
+	docker exec dlt-runner python /app/run_pipeline.py run --tables Reporting_Client,Reporting_Client_SCD2 --environment full
 
 reporting-verify:
 	@echo "Verifying reporting data integrity..."
