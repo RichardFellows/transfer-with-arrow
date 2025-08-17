@@ -36,6 +36,21 @@ class LogLevel(str, Enum):
     CRITICAL = "CRITICAL"
 
 
+class PipelineMode(str, Enum):
+    """Supported pipeline modes."""
+    DIRECT = "direct"              # Traditional direct source-to-destination
+    EXTRACT_ONLY = "extract_only"  # Only extract to parquet archive
+    LOAD_ONLY = "load_only"        # Only load from parquet archive  
+    TWO_STAGE = "two_stage"        # Extract then load in one operation
+
+
+class BatchSelection(str, Enum):
+    """Batch selection strategies for loading."""
+    LATEST = "latest"              # Load the latest available batch
+    SPECIFIC = "specific"          # Load a specific batch by ID
+    DATE_RANGE = "date_range"      # Load batches from a date range
+
+
 class ConnectionConfig(BaseModel):
     """Database connection configuration."""
     connection_string: str = Field(..., description="Database connection string")
@@ -112,6 +127,7 @@ class PipelineConfig(BaseModel):
     reflection_level: str = Field(default="full_with_precision", description="Schema reflection level")
     backend_kwargs: Dict[str, Any] = Field(default_factory=lambda: {"tz": "UTC"}, description="Backend-specific kwargs")
     naming_convention: NamingConvention = Field(default=NamingConvention.DIRECT, description="DLT naming convention for columns and tables")
+    pipeline_mode: PipelineMode = Field(default=PipelineMode.DIRECT, description="Pipeline operation mode")
     
     @field_validator('chunk_size')
     @classmethod
@@ -136,6 +152,51 @@ class VerificationConfig(BaseModel):
         return v
 
 
+class ArchiveConfig(BaseModel):
+    """Parquet archive configuration."""
+    enabled: bool = Field(default=False, description="Enable parquet archive functionality")
+    storage_path: str = Field(default="/data/parquet_archive", description="Root path for parquet storage")
+    manifest_path: str = Field(default="/data/manifests", description="Path for extraction manifests")
+    retention_days: int = Field(default=90, description="Number of days to retain archives")
+    compression: str = Field(default="snappy", description="Compression algorithm for parquet files")
+    partitioning: Optional[Dict[str, Any]] = Field(None, description="Partitioning configuration")
+    
+    @field_validator('retention_days')
+    @classmethod
+    def validate_retention_days(cls, v):
+        if v <= 0:
+            raise ValueError("retention_days must be positive")
+        return v
+
+
+class ExtractConfig(BaseModel):
+    """Extract operation configuration."""
+    batch_naming: str = Field(default="YYYYMMDD_HHMMSS", description="Batch naming pattern")
+    metadata: Dict[str, bool] = Field(
+        default_factory=lambda: {
+            "include_source_stats": True,
+            "include_schema_info": True
+        },
+        description="Metadata to include in extractions"
+    )
+    schedule: Optional[Dict[str, Any]] = Field(None, description="Extraction scheduling configuration")
+
+
+class LoadConfig(BaseModel):
+    """Load operation configuration."""
+    allow_historical: bool = Field(default=True, description="Allow loading historical batches")
+    batch_selection: BatchSelection = Field(default=BatchSelection.LATEST, description="Default batch selection strategy")
+    verification_mode: str = Field(default="standard", description="Verification mode for loaded data")
+    concurrent_batches: int = Field(default=1, description="Number of batches to load concurrently")
+    
+    @field_validator('concurrent_batches')
+    @classmethod
+    def validate_concurrent_batches(cls, v):
+        if v <= 0:
+            raise ValueError("concurrent_batches must be positive")
+        return v
+
+
 class LoggingConfig(BaseModel):
     """Logging configuration."""
     level: LogLevel = Field(default=LogLevel.INFO, description="Logging level")
@@ -155,23 +216,37 @@ class ConfigurationModel(BaseModel):
     tables: Dict[str, TableConfig] = Field(..., description="Table configurations")
     verification: VerificationConfig = Field(default_factory=VerificationConfig, description="Verification settings")
     logging: LoggingConfig = Field(default_factory=LoggingConfig, description="Logging configuration")
+    archive: ArchiveConfig = Field(default_factory=ArchiveConfig, description="Parquet archive configuration")
+    extract: ExtractConfig = Field(default_factory=ExtractConfig, description="Extract operation configuration")
+    load: LoadConfig = Field(default_factory=LoadConfig, description="Load operation configuration")
     
     @model_validator(mode='after')
     def validate_configuration(self):
-        # Validate connections
-        if 'source' not in self.connections:
-            raise ValueError("'source' connection is required")
-        if 'destination' not in self.connections:
-            raise ValueError("'destination' connection is required")
+        # Validate connections based on pipeline mode
+        pipeline_mode = self.pipeline.pipeline_mode
+        
+        if pipeline_mode in [PipelineMode.DIRECT, PipelineMode.EXTRACT_ONLY, PipelineMode.TWO_STAGE]:
+            if 'source' not in self.connections:
+                raise ValueError("'source' connection is required for extract operations")
+        
+        if pipeline_mode in [PipelineMode.DIRECT, PipelineMode.LOAD_ONLY, PipelineMode.TWO_STAGE]:
+            if 'destination' not in self.connections:
+                raise ValueError("'destination' connection is required for load operations")
+        
+        # Validate archive configuration for non-direct modes
+        if pipeline_mode != PipelineMode.DIRECT:
+            if not self.archive.enabled:
+                raise ValueError(f"Archive must be enabled for pipeline mode '{pipeline_mode.value}'")
         
         # Validate tables
         if not self.tables:
             raise ValueError("At least one table configuration is required")
         
-        # Validate enabled tables have source_table
-        for table_name, config in self.tables.items():
-            if config.enabled and not config.source_table:
-                raise ValueError(f"source_table is required for table '{table_name}'")
+        # Validate enabled tables have source_table (except for load-only mode)
+        if pipeline_mode != PipelineMode.LOAD_ONLY:
+            for table_name, config in self.tables.items():
+                if config.enabled and not config.source_table:
+                    raise ValueError(f"source_table is required for table '{table_name}' in {pipeline_mode.value} mode")
         
         return self
 

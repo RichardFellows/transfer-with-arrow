@@ -54,11 +54,16 @@ services:
     volumes:
       - ./dlt_scripts:/app
       - ./scripts:/scripts
+      - ./data/parquet_archive:/data/parquet_archive
+      - ./data/manifests:/data/manifests
     networks:
       - dlt-network
     environment:
       - SOURCE_CONNECTION_STRING=mssql+pyodbc://sa:SecurePass123@mssql-source:1433/ReportingDB?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes&Encrypt=no&LongAsMax=yes
       - DEST_CONNECTION_STRING=mssql+pyodbc://sa:SecurePass123@mssql-dest:1433/TargetDB?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes&Encrypt=no&LongAsMax=yes
+      - ARCHIVE_STORAGE_PATH=/data/parquet_archive
+      - MANIFEST_PATH=/data/manifests
+      - PIPELINE_MODE=direct
     command: tail -f /dev/null  # Keep container running
 
 volumes:

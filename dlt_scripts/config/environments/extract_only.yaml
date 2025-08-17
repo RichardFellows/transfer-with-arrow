@@ -1,0 +1,33 @@
+# Extract-only pipeline environment configuration
+# Only extracts data to parquet archive, no loading to destination
+
+pipeline:
+  pipeline_mode: "extract_only"
+
+archive:
+  enabled: true
+  storage_path: "/data/parquet_archive"
+  manifest_path: "/data/manifests"
+  retention_days: 90
+  compression: "snappy"
+  partitioning:
+    enabled: true
+    column: "SystemCalendarID"
+
+extract:
+  batch_naming: "YYYYMMDD_HHMMSS"
+  metadata:
+    include_source_stats: true
+    include_schema_info: true
+
+# Load configuration not used in extract-only mode
+load:
+  allow_historical: true
+  batch_selection: "latest"
+
+# Verification disabled for extract-only mode
+verification:
+  enabled: false
+
+logging:
+  level: "INFO"
