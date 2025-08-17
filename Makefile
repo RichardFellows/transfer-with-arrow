@@ -36,9 +36,11 @@ down:
 	docker-compose down --remove-orphans
 
 setup: up
-	@echo "Setting up reporting database and tables..."
-	@echo "Creating ReportingDB database..."
+	@echo "Setting up source and destination databases..."
+	@echo "Creating ReportingDB database on source..."
 	docker exec mssql-source /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P "SecurePass123" -Q "IF NOT EXISTS (SELECT * FROM sys.databases WHERE name = 'ReportingDB') CREATE DATABASE ReportingDB;"
+	@echo "Creating TargetDB database on destination..."
+	docker exec mssql-dest /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P "SecurePass123" -Q "IF NOT EXISTS (SELECT * FROM sys.databases WHERE name = 'TargetDB') CREATE DATABASE TargetDB;"
 	@echo "Creating Reporting_Client table..."
 	docker exec mssql-source /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P "SecurePass123" -d ReportingDB -i /scripts/create_reporting_client_table.sql
 	@echo "Creating Reporting_Client_SCD2 table..."
