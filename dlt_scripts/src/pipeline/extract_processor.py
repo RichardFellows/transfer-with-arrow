@@ -331,30 +331,16 @@ class ExtractProcessor:
     def _extract_with_table_processor(self, table_config: TableConfig):
         """Extract data using the existing TableProcessor."""
         try:
-            # Create optimized source using table processor
-            source = self.table_processor._create_optimized_table_source(
+            # Create optimized resource using table processor
+            # Note: This returns a DltResource, not a source with .resources
+            resource = self.table_processor._create_optimized_table_source(
                 table_name=table_config.source_table,
                 table_config=table_config,
                 schema_hints={}
             )
             
-            # Get the resource
-            resource_name = table_config.source_table.split('.')[-1]
-            if resource_name not in source.resources:
-                resource_name = table_config.source_table
-            
-            if resource_name not in source.resources:
-                raise ValueError(f"Resource {resource_name} not found in source")
-            
-            resource = source.resources[resource_name]
-            
-            # Apply incremental loading if enabled
-            if table_config.incremental.enabled:
-                resource = self.table_processor._apply_incremental_loading(
-                    table_name=table_config.source_table,
-                    table_config=table_config,
-                    resource=resource
-                )
+            # The resource is already configured with all optimizations
+            # including incremental loading, so we can extract directly
             
             # Extract data to list, then convert to DataFrame
             data_list = []
