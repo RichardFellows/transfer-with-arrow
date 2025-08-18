@@ -149,16 +149,35 @@ class TwoStagePipelineRunner:
         self.runner_logger.info("📦 Starting extraction phase")
         
         try:
-            results = self.extract_processor.extract_tables(
-                table_names=tables_to_process,
-                custom_metadata=custom_metadata
+            # Use the correct ExtractProcessor method
+            extract_results = self.extract_processor.extract_all_tables(
+                tables=tables_to_process,
+                batch_metadata=custom_metadata
             )
+            
+            # Convert the results to the expected format
+            # extract_all_tables returns Dict[str, Tuple[str, Any]]
+            # We need to convert to Dict[str, Dict[str, Any]]
+            formatted_results = {}
+            for table_name, (batch_id, result) in extract_results.items():
+                if isinstance(result, dict):
+                    formatted_results[table_name] = {
+                        "batch_id": batch_id,
+                        "status": "completed",
+                        **result
+                    }
+                else:
+                    formatted_results[table_name] = {
+                        "batch_id": batch_id,
+                        "status": "completed",
+                        "result": result
+                    }
             
             self.runner_logger.info("✅ Extraction phase completed")
             return {
                 "phase": "extract",
                 "status": "completed",
-                "tables": results,
+                "tables": formatted_results,
                 "timestamp": datetime.now().isoformat()
             }
             
