@@ -518,11 +518,16 @@ def run_two_stage_command(args: argparse.Namespace) -> int:
         print(f"\n{'='*60}")
         print("PIPELINE EXECUTION SUMMARY")
         print(f"{'='*60}")
-        print(f"Mode: {results['mode'].upper()}")
-        print(f"Status: {results['status'].upper()}")
-        print(f"Duration: {results['duration']:.2f} seconds")
-        print(f"Started: {results['started_at']}")
-        print(f"Completed: {results['completed_at']}")
+        print(f"Mode: {results.get('mode', 'unknown').upper()}")
+        print(f"Status: {results.get('status', 'unknown').upper()}")
+        if 'duration' in results:
+            print(f"Duration: {results['duration']:.2f} seconds")
+        if 'started_at' in results:
+            print(f"Started: {results['started_at']}")
+        if 'completed_at' in results:
+            print(f"Completed: {results['completed_at']}")
+        elif 'status' in results and results['status'] == 'failed':
+            print(f"Failed at: {datetime.now().isoformat()}")
         
         # Show phase-specific results
         if results.get("extract_results"):

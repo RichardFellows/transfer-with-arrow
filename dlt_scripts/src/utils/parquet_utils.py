@@ -112,6 +112,26 @@ class ParquetUtils:
             else:
                 table = data
             
+            # Fix chunked array issues - combine chunks and ensure consistent structure
+            if hasattr(table, 'combine_chunks'):
+                try:
+                    table = table.combine_chunks()
+                    self.logger.debug("Combined chunked arrays for parquet serialization")
+                except Exception as e:
+                    self.logger.warning(f"Failed to combine chunks: {e}")
+            
+            # Additional validation and flattening for complex nested structures
+            if hasattr(table, 'to_pandas') and hasattr(table, 'from_pandas'):
+                try:
+                    # Convert through pandas to normalize the data structure
+                    # This handles complex nested arrays that can't be serialized directly
+                    temp_df = table.to_pandas()
+                    table = pa.Table.from_pandas(temp_df)
+                    self.logger.debug("Normalized table structure via pandas conversion")
+                except Exception as e:
+                    self.logger.warning(f"Failed to normalize via pandas: {e}")
+                    # Continue with original table if normalization fails
+            
             # Add metadata to schema
             if metadata:
                 existing_metadata = table.schema.metadata or {}

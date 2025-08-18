@@ -342,18 +342,49 @@ class ExtractProcessor:
             # The resource is already configured with all optimizations
             # including incremental loading, so we can extract directly
             
-            # Extract data to list, then convert to DataFrame
-            data_list = []
-            for item in resource:
-                data_list.append(item)
+            # Extract data - handle different DLT resource types
+            import pandas as pd
+            import pyarrow as pa
             
+            # Check if the resource directly provides a PyArrow Table or DataFrame
+            data_list = []
+            arrow_table = None
+            
+            for item in resource:
+                if isinstance(item, pa.Table):
+                    # Direct PyArrow Table - this is what we want for parquet storage
+                    arrow_table = item
+                    self.extract_logger.info(f"Got PyArrow Table with {len(item)} rows and {len(item.schema)} columns")
+                    break
+                elif isinstance(item, pd.DataFrame):
+                    # Direct DataFrame
+                    data = item
+                    self.extract_logger.info(f"Got DataFrame with {len(item)} rows and {len(item.columns)} columns")
+                    return data
+                elif isinstance(item, dict):
+                    data_list.append(item)
+                elif hasattr(item, '__dict__'):
+                    data_list.append(item.__dict__)
+                else:
+                    # Handle complex DLT items - try to convert to dict
+                    try:
+                        data_list.append(dict(item))
+                    except:
+                        self.extract_logger.debug(f"Could not convert item to dict: {type(item)} - this may be expected for PyArrow Tables")
+            
+            # If we got a PyArrow Table directly, convert to DataFrame for consistency
+            if arrow_table is not None:
+                data = arrow_table.to_pandas()
+                self.extract_logger.info(f"Converted PyArrow Table to DataFrame: {len(data)} rows, {len(data.columns)} columns")
+                return data
+            
+            # Otherwise build from data_list
             if not data_list:
-                import pandas as pd
                 return pd.DataFrame()
             
-            # Convert to DataFrame
-            import pandas as pd
+            # Convert to DataFrame for consistent structure
             data = pd.DataFrame(data_list)
+            self.extract_logger.info(f"Extracted {len(data)} rows with {len(data.columns)} columns")
             
             return data
             
