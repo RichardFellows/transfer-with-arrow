@@ -8,8 +8,9 @@ This project demonstrates a complete, enterprise-ready data pipeline solution us
 - **🎯 Configuration-Driven Architecture** with YAML-based pipeline definitions
 - **🔧 Environment Support** for dev/staging/prod deployments
 - **⚡ Advanced Features** including incremental loading, data verification, and monitoring
+- **🗂️ Two-Stage Pipeline Architecture** with parquet intermediate layer for extract → load workflows
 - **DLT (Data Loading Tool)** for efficient data extraction and loading
-- **PyArrow** backend for high-performance data processing
+- **PyArrow** backend for high-performance data processing with parquet file format
 - **Docker** for containerized, reproducible environments
 - **MSSQL Server** as both source and destination databases
 - **Comprehensive testing** with both unit and integration tests
@@ -78,6 +79,12 @@ make logs
 - `make pipeline-stats` - Show pipeline statistics and table information
 - `make pipeline-help` - Show detailed CLI help
 
+### Two-Stage Pipeline Operations
+- **Extract Phase**: `docker exec dlt-runner python /app/run_pipeline.py extract [options]`
+- **Load Phase**: `docker exec dlt-runner python /app/run_pipeline.py load [options]`
+- **Archive Management**: `docker exec dlt-runner python /app/run_pipeline.py archive [action] [options]`
+- **Pipeline Modes**: `docker exec dlt-runner python /app/run_pipeline.py run --mode [direct|extract-only|load-only|two-stage]`
+
 ### Common Aliases
 - `make test-copy` - Run full pipeline (alias for pipeline-run)
 - `make reporting-scd2-sync` - Run Reporting_Client_SCD2 pipeline
@@ -109,6 +116,15 @@ The pipeline system provides advanced configuration capabilities through YAML fi
 - **✅ Data Verification**: Built-in verification with custom checks and tolerance settings
 - **📊 Comprehensive Logging**: Structured logging with progress tracking and monitoring
 - **🔍 Schema Validation**: Pydantic-based configuration validation with detailed error reporting
+- **🗂️ Two-Stage Architecture**: Extract → Parquet Archive → Load workflow with batch management
+
+### Pipeline Modes
+The system supports four execution modes:
+
+1. **DIRECT** (Default): Traditional direct database-to-database transfer
+2. **EXTRACT_ONLY**: Extract data to parquet files in archive directory
+3. **LOAD_ONLY**: Load data from existing parquet files to destination
+4. **TWO_STAGE**: Complete extract → load workflow with intermediate parquet storage
 
 ### Default Configuration
 - **Backend**: PyArrow for efficient data processing
@@ -117,6 +133,8 @@ The pipeline system provides advanced configuration capabilities through YAML fi
 - **Default Tables**: Reporting_Client, Reporting_Client_SCD2
 - **Write Modes**: Replace, Append, Merge (configurable per table)
 - **Connection Management**: Environment variable substitution with secure credential handling
+- **Archive Directory**: `/app/data/archive/` for parquet files in two-stage workflows
+- **Batch Management**: Automatic timestamped batch organization with cleanup capabilities
 
 ### Direct Pipeline Usage
 You can run the pipeline directly with advanced options:
@@ -138,14 +156,33 @@ docker exec dlt-runner python /app/run_pipeline.py [command] [options]
 
 **Examples:**
 ```bash
-# Run with default configuration
+# Run with default configuration (direct mode)
 docker exec dlt-runner python /app/run_pipeline.py run
+
+# Run in two-stage mode (extract → load)
+docker exec dlt-runner python /app/run_pipeline.py run --mode two-stage
+
+# Extract-only operation
+docker exec dlt-runner python /app/run_pipeline.py extract --tables Reporting_Client
+docker exec dlt-runner python /app/run_pipeline.py run --mode extract-only
+
+# Load from latest archived data
+docker exec dlt-runner python /app/run_pipeline.py load --batch latest
+docker exec dlt-runner python /app/run_pipeline.py run --mode load-only
+
+# Load specific batch
+docker exec dlt-runner python /app/run_pipeline.py load --batch 20250818_120000
+
+# Load batches from date range
+docker exec dlt-runner python /app/run_pipeline.py load --date-range 20250815-20250817
+
+# Archive management
+docker exec dlt-runner python /app/run_pipeline.py archive list --last 10
+docker exec dlt-runner python /app/run_pipeline.py archive stats
+docker exec dlt-runner python /app/run_pipeline.py archive cleanup --older-than 30d
 
 # Run with development environment
 docker exec dlt-runner python /app/run_pipeline.py run --environment dev
-
-# Run specific tables only
-docker exec dlt-runner python /app/run_pipeline.py run --tables Reporting_Client Reporting_Client_SCD2
 
 # Validate production configuration
 docker exec dlt-runner python /app/run_pipeline.py validate --environment prod
@@ -162,6 +199,16 @@ pipeline:
   name: "my_migration"
   dataset_name: "target_data"
   chunk_size: 10000
+  pipeline_mode: "two-stage"  # direct, extract-only, load-only, two-stage
+  backend: "pyarrow"
+  loader_file_format: "parquet"
+
+# Archive configuration for two-stage workflows
+archive:
+  storage_path: "/data/parquet_archive"
+  manifest_path: "/data/parquet_archive/manifest.json"
+  retention_days: 90
+  compression: "snappy"
 
 connections:
   source:
