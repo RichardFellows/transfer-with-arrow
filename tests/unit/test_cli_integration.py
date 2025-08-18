@@ -6,7 +6,7 @@ Tests the new CLI commands, validation, and formatting.
 
 import pytest
 pytestmark = pytest.mark.unit
-from unittest.mock import Mock, MagicMock, patch
+from unittest.mock import Mock, MagicMock, patch, ANY
 import argparse
 from pathlib import Path
 from datetime import datetime
@@ -84,16 +84,15 @@ class TestCLICommandMocking:
         
         # Setup mocks
         mock_config = Mock()
+        mock_config.tables = {
+            "test_table": Mock(enabled=True)
+        }
         mock_load_config.return_value = mock_config
         
         mock_runner = Mock()
-        mock_runner.extract_tables.return_value = {
-            "phase": "extract",
-            "status": "completed",
-            "tables": {
-                "test_table": {"status": "completed", "rows": 100}
-            }
-        }
+        mock_extract_processor = Mock()
+        mock_extract_processor.extract_table.return_value = {"status": "completed", "rows": 100}
+        mock_runner.extract_processor = mock_extract_processor
         mock_runner_class.return_value = mock_runner
         
         # Create mock args
@@ -111,9 +110,9 @@ class TestCLICommandMocking:
         # Verify interactions
         mock_load_config.assert_called_once()
         mock_runner_class.assert_called_once_with(mock_config)
-        mock_runner.extract_tables.assert_called_once_with(
-            tables_to_process=["test_table"],
-            custom_metadata=pytest.any(dict)
+        mock_extract_processor.extract_table.assert_called_once_with(
+            "test_table",
+            ANY
         )
         
         assert result == 0  # Success
@@ -127,6 +126,9 @@ class TestCLICommandMocking:
         
         # Setup mocks
         mock_config = Mock()
+        mock_config.tables = {
+            "test_table": Mock(enabled=True)
+        }
         mock_load_config.return_value = mock_config
         
         mock_runner = Mock()
