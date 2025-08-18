@@ -541,9 +541,17 @@ def run_two_stage_command(args: argparse.Namespace) -> int:
         
         if results.get("results"):  # Direct mode results
             print(f"\n📊 Direct Mode Results:")
-            for table_name, result in results["results"].items():
-                status = "✅" if result.get("status") == "completed" else "❌"
-                print(f"  {status} {table_name}")
+            direct_results = results["results"]
+            if isinstance(direct_results, dict):
+                for table_name, result in direct_results.items():
+                    if isinstance(result, dict):
+                        status = "✅" if result.get("status") == "completed" else "❌"
+                        print(f"  {status} {table_name}")
+                    else:
+                        # Handle case where result is not a dictionary
+                        print(f"  ✅ {table_name}")
+            else:
+                print(f"  Results: {direct_results}")
         
         # Save results to file if requested
         if args.output:
