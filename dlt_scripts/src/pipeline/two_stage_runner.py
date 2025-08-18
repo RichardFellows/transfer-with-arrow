@@ -55,10 +55,10 @@ class TwoStagePipelineRunner:
         self.direct_runner = None
         
         if self.pipeline_mode in [PipelineMode.EXTRACT_ONLY, PipelineMode.TWO_STAGE]:
-            self.extract_processor = ExtractProcessor(config, self.logger)
+            self.extract_processor = ExtractProcessor(config, self.archive_manager, self.logger)
         
         if self.pipeline_mode in [PipelineMode.LOAD_ONLY, PipelineMode.TWO_STAGE]:
-            self.load_processor = LoadProcessor(config, self.logger)
+            self.load_processor = LoadProcessor(config, self.archive_manager, self.logger)
         
         if self.pipeline_mode == PipelineMode.DIRECT:
             self.direct_runner = PipelineRunner(config)
