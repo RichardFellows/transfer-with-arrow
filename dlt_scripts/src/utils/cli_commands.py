@@ -58,10 +58,25 @@ def extract_command(args: argparse.Namespace) -> int:
         else:
             print("All enabled tables")
         
-        results = runner.extract_tables(
-            tables_to_process=args.tables,
-            custom_metadata=custom_metadata
-        )
+        if args.tables:
+            # For specific tables, we need to call extract_table for each one
+            results = {"phase": "extract", "status": "completed", "tables": {}, "timestamp": datetime.now().isoformat()}
+            for table_name in args.tables:
+                try:
+                    table_result = runner.extract_processor.extract_table(table_name, custom_metadata)
+                    results["tables"][table_name] = table_result
+                except Exception as e:
+                    results["tables"][table_name] = {"status": "failed", "error": str(e)}
+                    results["status"] = "failed"
+        else:
+            # For all tables, use extract_all_tables
+            results = runner.extract_processor.extract_all_tables(custom_metadata)
+            results = {
+                "phase": "extract",
+                "status": "completed",
+                "tables": results,
+                "timestamp": datetime.now().isoformat()
+            }
         
         # Format and display results
         format_extraction_results(results)

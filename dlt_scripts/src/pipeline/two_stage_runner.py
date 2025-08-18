@@ -124,7 +124,9 @@ class TwoStagePipelineRunner:
         finally:
             if self.start_time:
                 duration = datetime.now() - self.start_time
-                log_pipeline_complete(self.logger, duration.total_seconds())
+                # Count tables processed
+                table_count = len(tables_to_process) if tables_to_process else len(self.config.tables)
+                log_pipeline_complete(self.logger, duration.total_seconds(), table_count)
     
     def extract_tables(
         self,
