@@ -74,17 +74,22 @@ class LoadProcessor:
             
             self._pipeline = dlt.pipeline(
                 pipeline_name=self.config.pipeline.name,
-                destination="mssql",
-                dataset_name=self.config.pipeline.dataset_name,
-                credentials=dest_conn,
-                **self.config.pipeline.backend_kwargs
+                destination=dlt.destinations.sqlalchemy(dest_conn),
+                dataset_name=self.config.pipeline.dataset_name
             )
             
-            # Configure backend
-            if self.config.pipeline.backend.value == "pyarrow":
-                self._pipeline = self._pipeline.with_config(
-                    loader_file_format=self.config.pipeline.loader_file_format
-                )
+            # Set naming convention environment variable 
+            import os
+            os.environ["SCHEMA__NAMING"] = self.config.pipeline.naming_convention.value
+            self.load_logger.info(f"🏷️ Set environment SCHEMA__NAMING={self.config.pipeline.naming_convention.value}")
+            
+            # Apply naming convention to the pipeline schema
+            try:
+                self._pipeline.default_schema.naming.naming_convention = self.config.pipeline.naming_convention.value
+                self.load_logger.info(f"✅ Successfully set pipeline naming convention to: {self.config.pipeline.naming_convention.value}")
+            except Exception as e:
+                self.load_logger.warning(f"⚠️ Failed to set pipeline naming convention: {e}")
+                self.load_logger.info("📋 Continuing with environment variable approach...")
         
         return self._pipeline
     
@@ -164,8 +169,8 @@ class LoadProcessor:
                 "load_info": {
                     "dataset_name": load_info.dataset_name,
                     "destination_name": load_info.destination_name,
-                    "pipeline_name": load_info.pipeline_name,
-                    "loads_ids": [load.load_id for load in load_info.loads],
+                    "pipeline_name": self.config.pipeline.name,
+                    "load_id": getattr(load_info, 'load_id', None),
                     "started_at": load_info.started_at.isoformat() if load_info.started_at else None,
                     "finished_at": load_info.finished_at.isoformat() if load_info.finished_at else None
                 }

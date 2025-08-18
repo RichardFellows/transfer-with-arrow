@@ -253,8 +253,11 @@ def archive_list_command(args: argparse.Namespace) -> int:
             print(f"    Created: {batch.created_at.strftime('%Y-%m-%d %H:%M:%S')}")
             print(f"    Status: {batch.status.value}")
             print(f"    Rows: {batch.row_count:,}")
-            if batch.file_size_mb:
+            if hasattr(batch, 'file_size_mb') and batch.file_size_mb:
                 print(f"    Size: {batch.file_size_mb:.2f} MB")
+            elif hasattr(batch, 'file_size_bytes') and batch.file_size_bytes:
+                size_mb = batch.file_size_bytes / (1024 * 1024)
+                print(f"    Size: {size_mb:.2f} MB")
             print()
         
         return 0
