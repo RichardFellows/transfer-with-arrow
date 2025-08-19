@@ -1,0 +1,185 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: pipeline-extract-daily
+  namespace: data-pipeline
+spec:
+  schedule: "0 2 * * *"  # Daily at 2 AM
+  timeZone: "UTC"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          serviceAccountName: pipeline-service-account
+          containers:
+          - name: dlt-runner
+            image: your-registry/transfer-with-arrow:latest
+            command: ["python", "/app/run_pipeline.py"]
+            args: ["extract", "--environment", "k8s"]
+            envFrom:
+            - secretRef:
+                name: database-credentials
+            volumeMounts:
+            - name: config-volume
+              mountPath: /app/config/environments
+              readOnly: true
+            - name: archive-storage
+              mountPath: /data/archive
+            - name: manifest-storage
+              mountPath: /data/manifests
+            - name: logs-storage
+              mountPath: /data/logs
+            resources:
+              requests:
+                memory: "2Gi"
+                cpu: "1000m"
+              limits:
+                memory: "4Gi"
+                cpu: "2000m"
+            securityContext:
+              allowPrivilegeEscalation: false
+              runAsNonRoot: true
+              runAsUser: 1000
+              runAsGroup: 1000
+              capabilities:
+                drop:
+                - ALL
+          volumes:
+          - name: config-volume
+            configMap:
+              name: pipeline-config
+          - name: archive-storage
+            persistentVolumeClaim:
+              claimName: pipeline-archive-pvc
+          - name: manifest-storage
+            persistentVolumeClaim:
+              claimName: pipeline-manifests-pvc
+          - name: logs-storage
+            emptyDir: {}
+          restartPolicy: OnFailure
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: pipeline-load-daily
+  namespace: data-pipeline
+spec:
+  schedule: "0 3 * * *"  # Daily at 3 AM (after extract)
+  timeZone: "UTC"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          serviceAccountName: pipeline-service-account
+          containers:
+          - name: dlt-runner
+            image: your-registry/transfer-with-arrow:latest
+            command: ["python", "/app/run_pipeline.py"]
+            args: ["load", "--batch", "latest", "--environment", "k8s"]
+            envFrom:
+            - secretRef:
+                name: database-credentials
+            volumeMounts:
+            - name: config-volume
+              mountPath: /app/config/environments
+              readOnly: true
+            - name: archive-storage
+              mountPath: /data/archive
+            - name: manifest-storage
+              mountPath: /data/manifests
+            - name: logs-storage
+              mountPath: /data/logs
+            resources:
+              requests:
+                memory: "2Gi"
+                cpu: "1000m"
+              limits:
+                memory: "4Gi"
+                cpu: "2000m"
+            securityContext:
+              allowPrivilegeEscalation: false
+              runAsNonRoot: true
+              runAsUser: 1000
+              runAsGroup: 1000
+              capabilities:
+                drop:
+                - ALL
+          volumes:
+          - name: config-volume
+            configMap:
+              name: pipeline-config
+          - name: archive-storage
+            persistentVolumeClaim:
+              claimName: pipeline-archive-pvc
+          - name: manifest-storage
+            persistentVolumeClaim:
+              claimName: pipeline-manifests-pvc
+          - name: logs-storage
+            emptyDir: {}
+          restartPolicy: OnFailure
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: pipeline-archive-cleanup
+  namespace: data-pipeline
+spec:
+  schedule: "0 1 * * 0"  # Weekly on Sunday at 1 AM
+  timeZone: "UTC"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          serviceAccountName: pipeline-service-account
+          containers:
+          - name: dlt-runner
+            image: your-registry/transfer-with-arrow:latest
+            command: ["python", "/app/run_pipeline.py"]
+            args: ["archive", "cleanup", "--older-than", "30d"]
+            envFrom:
+            - secretRef:
+                name: database-credentials
+            volumeMounts:
+            - name: config-volume
+              mountPath: /app/config/environments
+              readOnly: true
+            - name: archive-storage
+              mountPath: /data/archive
+            - name: manifest-storage
+              mountPath: /data/manifests
+            - name: logs-storage
+              mountPath: /data/logs
+            resources:
+              requests:
+                memory: "1Gi"
+                cpu: "500m"
+              limits:
+                memory: "2Gi"
+                cpu: "1000m"
+            securityContext:
+              allowPrivilegeEscalation: false
+              runAsNonRoot: true
+              runAsUser: 1000
+              runAsGroup: 1000
+              capabilities:
+                drop:
+                - ALL
+          volumes:
+          - name: config-volume
+            configMap:
+              name: pipeline-config
+          - name: archive-storage
+            persistentVolumeClaim:
+              claimName: pipeline-archive-pvc
+          - name: manifest-storage
+            persistentVolumeClaim:
+              claimName: pipeline-manifests-pvc
+          - name: logs-storage
+            emptyDir: {}
+          restartPolicy: OnFailure
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1

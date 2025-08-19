@@ -929,6 +929,712 @@ scripts pipeline-run
 
 Both Windows alternatives provide the same functionality as Make, ensuring that Windows developers have a seamless experience regardless of their preferred command line environment.
 
+## ☸️ OpenShift/Kubernetes Deployment
+
+Deploy the two-stage pipeline in OpenShift or Kubernetes environments for production-scale data processing with enterprise features like scalability, monitoring, and security.
+
+### Architecture Overview
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    OpenShift/Kubernetes Cluster                 │
+├─────────────────────────────────────────────────────────────────┤
+│  ┌─────────────────┐    ┌─────────────────┐    ┌──────────────┐ │
+│  │   ConfigMaps    │    │     Secrets     │    │ Persistent   │ │
+│  │                 │    │                 │    │  Volumes     │ │
+│  │ • Pipeline      │    │ • DB Credentials│    │              │ │
+│  │   Config        │    │ • SSL Certs     │    │ • Archive    │ │
+│  │ • Environment   │    │ • Service       │    │   Storage    │ │
+│  │   Settings      │    │   Accounts      │    │ • Manifests  │ │
+│  └─────────────────┘    └─────────────────┘    └──────────────┘ │
+│           │                       │                      │      │
+│  ┌─────────────────────────────────────────────────────────────┐ │
+│  │                  Pipeline Jobs/CronJobs                    │ │
+│  │                                                             │ │
+│  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐ │ │
+│  │  │  Extract    │  │    Load     │  │    Two-Stage        │ │ │
+│  │  │    Job      │  │    Job      │  │     Workflow        │ │ │
+│  │  │             │  │             │  │                     │ │ │
+│  │  │ • On-demand │  │ • Scheduled │  │ • Extract → Load    │ │ │
+│  │  │ • Scheduled │  │ • On-demand │  │ • Full Pipeline     │ │ │
+│  │  └─────────────┘  └─────────────┘  └─────────────────────┘ │ │
+│  └─────────────────────────────────────────────────────────────┘ │
+│           │                       │                      │      │
+│  ┌─────────────────────────────────────────────────────────────┐ │
+│  │                    External Services                       │ │
+│  │                                                             │ │
+│  │  ┌─────────────┐                           ┌─────────────┐ │ │
+│  │  │   Source    │                           │ Destination │ │ │
+│  │  │  Database   │◄──────────────────────────┤  Database   │ │ │
+│  │  │             │                           │             │ │ │
+│  │  │ • SQL Server│                           │ • SQL Server│ │ │
+│  │  │ • Oracle    │                           │ • PostgreSQL│ │ │
+│  │  │ • PostgreSQL│                           │ • BigQuery  │ │ │
+│  │  └─────────────┘                           └─────────────┘ │ │
+│  └─────────────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Prerequisites
+
+1. **OpenShift/Kubernetes Cluster**: Access to cluster with appropriate permissions
+2. **CLI Tools**: `oc` (OpenShift) or `kubectl` (Kubernetes)
+3. **Container Registry**: Access to push custom images (optional)
+4. **Storage**: Persistent storage for archive and manifest data
+5. **Database Access**: Network connectivity to source and destination databases
+
+### Deployment Methods
+
+#### Method 1: Using the Pre-built Container Image
+
+**Create Namespace/Project:**
+```bash
+# OpenShift
+oc new-project data-pipeline
+
+# Kubernetes  
+kubectl create namespace data-pipeline
+kubectl config set-context --current --namespace=data-pipeline
+```
+
+**Deploy Base Resources:**
+```yaml
+# File: k8s/namespace.yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: data-pipeline
+  labels:
+    name: data-pipeline
+---
+# File: k8s/storage.yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pipeline-archive-pvc
+  namespace: data-pipeline
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 100Gi
+  storageClassName: fast-ssd  # Adjust for your cluster
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pipeline-manifests-pvc
+  namespace: data-pipeline
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: fast-ssd
+```
+
+**Create Configuration:**
+```yaml
+# File: k8s/configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pipeline-config
+  namespace: data-pipeline
+data:
+  pipeline_config.yaml: |
+    pipeline:
+      name: "k8s_data_pipeline"
+      dataset_name: "DestinationDB"
+      chunk_size: 10000
+      pipeline_mode: "two-stage"
+      backend: "pyarrow"
+      loader_file_format: "parquet"
+      naming_convention: "direct"
+
+    archive:
+      storage_path: "/data/archive"
+      manifest_path: "/data/manifests"
+      retention_days: 30
+      compression: "snappy"
+
+    connections:
+      source:
+        connection_string: "${SOURCE_CONNECTION_STRING}"
+        schema: "dbo"
+        timeout: 300
+      destination:
+        connection_string: "${DEST_CONNECTION_STRING}"
+        schema: "dbo"
+        timeout: 300
+
+    tables:
+      Reporting_Client:
+        source_table: "dbo.Reporting_Client"
+        destination_table: "Reporting_Client"
+        disposition: "append"
+        incremental:
+          enabled: true
+          strategy: "sequence"
+          watermark_column: "SystemCalendarID"
+          initial_value: 0
+        enabled: true
+        primary_key: ["RecordID"]
+
+    verification:
+      enabled: true
+      tolerance: 0
+
+    logging:
+      level: "INFO"
+      format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+      file_path: "/data/logs/pipeline.log"
+```
+
+**Create Secrets:**
+```yaml
+# File: k8s/secrets.yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: database-credentials
+  namespace: data-pipeline
+type: Opaque
+stringData:
+  SOURCE_CONNECTION_STRING: "DRIVER={ODBC Driver 18 for SQL Server};SERVER=source-server;DATABASE=SourceDB;UID=username;PWD=password;TrustServerCertificate=yes;Encrypt=yes"
+  DEST_CONNECTION_STRING: "DRIVER={ODBC Driver 18 for SQL Server};SERVER=dest-server;DATABASE=DestDB;UID=username;PWD=password;TrustServerCertificate=yes;Encrypt=yes"
+```
+
+**Deploy Pipeline Jobs:**
+```yaml
+# File: k8s/extract-job.yaml
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: pipeline-extract
+  namespace: data-pipeline
+spec:
+  template:
+    metadata:
+      labels:
+        app: pipeline-extract
+    spec:
+      containers:
+      - name: dlt-runner
+        image: your-registry/transfer-with-arrow:latest
+        command: ["python", "/app/run_pipeline.py"]
+        args: ["extract", "--environment", "k8s"]
+        envFrom:
+        - secretRef:
+            name: database-credentials
+        volumeMounts:
+        - name: config-volume
+          mountPath: /app/config/environments
+          readOnly: true
+        - name: archive-storage
+          mountPath: /data/archive
+        - name: manifest-storage
+          mountPath: /data/manifests
+        resources:
+          requests:
+            memory: "2Gi"
+            cpu: "1000m"
+          limits:
+            memory: "4Gi"
+            cpu: "2000m"
+      volumes:
+      - name: config-volume
+        configMap:
+          name: pipeline-config
+      - name: archive-storage
+        persistentVolumeClaim:
+          claimName: pipeline-archive-pvc
+      - name: manifest-storage
+        persistentVolumeClaim:
+          claimName: pipeline-manifests-pvc
+      restartPolicy: OnFailure
+      backoffLimit: 3
+---
+# File: k8s/load-job.yaml
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: pipeline-load
+  namespace: data-pipeline
+spec:
+  template:
+    metadata:
+      labels:
+        app: pipeline-load
+    spec:
+      containers:
+      - name: dlt-runner
+        image: your-registry/transfer-with-arrow:latest
+        command: ["python", "/app/run_pipeline.py"]
+        args: ["load", "--batch", "latest", "--environment", "k8s"]
+        envFrom:
+        - secretRef:
+            name: database-credentials
+        volumeMounts:
+        - name: config-volume
+          mountPath: /app/config/environments
+          readOnly: true
+        - name: archive-storage
+          mountPath: /data/archive
+        - name: manifest-storage
+          mountPath: /data/manifests
+        resources:
+          requests:
+            memory: "2Gi"
+            cpu: "1000m"
+          limits:
+            memory: "4Gi"
+            cpu: "2000m"
+      volumes:
+      - name: config-volume
+        configMap:
+          name: pipeline-config
+      - name: archive-storage
+        persistentVolumeClaim:
+          claimName: pipeline-archive-pvc
+      - name: manifest-storage
+        persistentVolumeClaim:
+          claimName: pipeline-manifests-pvc
+      restartPolicy: OnFailure
+      backoffLimit: 3
+```
+
+**Create Scheduled CronJobs:**
+```yaml
+# File: k8s/cronjobs.yaml
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: pipeline-extract-daily
+  namespace: data-pipeline
+spec:
+  schedule: "0 2 * * *"  # Daily at 2 AM
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: dlt-runner
+            image: your-registry/transfer-with-arrow:latest
+            command: ["python", "/app/run_pipeline.py"]
+            args: ["extract", "--environment", "k8s"]
+            envFrom:
+            - secretRef:
+                name: database-credentials
+            volumeMounts:
+            - name: config-volume
+              mountPath: /app/config/environments
+              readOnly: true
+            - name: archive-storage
+              mountPath: /data/archive
+            - name: manifest-storage
+              mountPath: /data/manifests
+            resources:
+              requests:
+                memory: "2Gi"
+                cpu: "1000m"
+              limits:
+                memory: "4Gi"
+                cpu: "2000m"
+          volumes:
+          - name: config-volume
+            configMap:
+              name: pipeline-config
+          - name: archive-storage
+            persistentVolumeClaim:
+              claimName: pipeline-archive-pvc
+          - name: manifest-storage
+            persistentVolumeClaim:
+              claimName: pipeline-manifests-pvc
+          restartPolicy: OnFailure
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: pipeline-load-daily
+  namespace: data-pipeline
+spec:
+  schedule: "0 3 * * *"  # Daily at 3 AM (after extract)
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: dlt-runner
+            image: your-registry/transfer-with-arrow:latest
+            command: ["python", "/app/run_pipeline.py"]
+            args: ["load", "--batch", "latest", "--environment", "k8s"]
+            envFrom:
+            - secretRef:
+                name: database-credentials
+            volumeMounts:
+            - name: config-volume
+              mountPath: /app/config/environments
+              readOnly: true
+            - name: archive-storage
+              mountPath: /data/archive
+            - name: manifest-storage
+              mountPath: /data/manifests
+            resources:
+              requests:
+                memory: "2Gi"
+                cpu: "1000m"
+              limits:
+                memory: "4Gi"
+                cpu: "2000m"
+          volumes:
+          - name: config-volume
+            configMap:
+              name: pipeline-config
+          - name: archive-storage
+            persistentVolumeClaim:
+              claimName: pipeline-archive-pvc
+          - name: manifest-storage
+            persistentVolumeClaim:
+              claimName: pipeline-manifests-pvc
+          restartPolicy: OnFailure
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: pipeline-archive-cleanup
+  namespace: data-pipeline
+spec:
+  schedule: "0 1 * * 0"  # Weekly on Sunday at 1 AM
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: dlt-runner
+            image: your-registry/transfer-with-arrow:latest
+            command: ["python", "/app/run_pipeline.py"]
+            args: ["archive", "cleanup", "--older-than", "30d"]
+            envFrom:
+            - secretRef:
+                name: database-credentials
+            volumeMounts:
+            - name: config-volume
+              mountPath: /app/config/environments
+              readOnly: true
+            - name: archive-storage
+              mountPath: /data/archive
+            - name: manifest-storage
+              mountPath: /data/manifests
+            resources:
+              requests:
+                memory: "1Gi"
+                cpu: "500m"
+              limits:
+                memory: "2Gi"
+                cpu: "1000m"
+          volumes:
+          - name: config-volume
+            configMap:
+              name: pipeline-config
+          - name: archive-storage
+            persistentVolumeClaim:
+              claimName: pipeline-archive-pvc
+          - name: manifest-storage
+            persistentVolumeClaim:
+              claimName: pipeline-manifests-pvc
+          restartPolicy: OnFailure
+```
+
+#### Method 2: Building Custom Container Image
+
+**Create Dockerfile for Kubernetes:**
+```dockerfile
+# File: Dockerfile.k8s
+FROM python:3.11-slim
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    gnupg \
+    unixodbc \
+    unixodbc-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Microsoft ODBC Driver 18 for SQL Server
+RUN curl https://packages.microsoft.com/keys/microsoft.asc | apt-key add - \
+    && curl https://packages.microsoft.com/config/debian/11/prod.list > /etc/apt/sources.list.d/mssql-release.list \
+    && apt-get update \
+    && ACCEPT_EULA=Y apt-get install -y msodbcsql18 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set working directory
+WORKDIR /app
+
+# Copy requirements and install Python dependencies
+COPY dlt_scripts/requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application code
+COPY dlt_scripts/ .
+
+# Create data directories
+RUN mkdir -p /data/archive /data/manifests /data/logs
+
+# Set environment variables
+ENV PYTHONPATH=/app/src
+ENV DLT_PROJECT_DIR=/app
+
+# Create non-root user for security
+RUN groupadd -r appuser && useradd -r -g appuser appuser
+RUN chown -R appuser:appuser /app /data
+USER appuser
+
+# Default command
+CMD ["python", "run_pipeline.py", "--help"]
+```
+
+**Build and Push Image:**
+```bash
+# Build image
+docker build -f Dockerfile.k8s -t your-registry/transfer-with-arrow:latest .
+
+# Push to registry (adjust for your registry)
+docker push your-registry/transfer-with-arrow:latest
+```
+
+### Deployment Commands
+
+**Deploy all resources:**
+```bash
+# Apply all configurations
+kubectl apply -f k8s/
+
+# Or for OpenShift
+oc apply -f k8s/
+```
+
+**Manual job execution:**
+```bash
+# Run extract job manually
+kubectl create job --from=cronjob/pipeline-extract-daily manual-extract-$(date +%Y%m%d%H%M%S)
+
+# Run load job manually  
+kubectl create job --from=cronjob/pipeline-load-daily manual-load-$(date +%Y%m%d%H%M%S)
+```
+
+### Monitoring and Management
+
+**View job status:**
+```bash
+# List all jobs
+kubectl get jobs
+
+# Get job logs
+kubectl logs job/pipeline-extract
+
+# Get pod logs
+kubectl logs -l app=pipeline-extract
+
+# View CronJob status
+kubectl get cronjobs
+```
+
+**Archive management:**
+```bash
+# Check archive statistics
+kubectl exec -it $(kubectl get pods -l app=pipeline-extract -o jsonpath='{.items[0].metadata.name}') -- python run_pipeline.py archive stats
+
+# List recent batches
+kubectl exec -it deployment/pipeline-runner -- python run_pipeline.py archive list --last 10
+```
+
+### Security Best Practices
+
+**1. Service Accounts and RBAC:**
+```yaml
+# File: k8s/rbac.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: pipeline-service-account
+  namespace: data-pipeline
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: pipeline-role
+  namespace: data-pipeline
+rules:
+- apiGroups: [""]
+  resources: ["configmaps", "secrets"]
+  verbs: ["get", "list"]
+- apiGroups: ["batch"]
+  resources: ["jobs"]
+  verbs: ["get", "list", "create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: pipeline-role-binding
+  namespace: data-pipeline
+subjects:
+- kind: ServiceAccount
+  name: pipeline-service-account
+  namespace: data-pipeline
+roleRef:
+  kind: Role
+  name: pipeline-role
+  apiGroup: rbac.authorization.k8s.io
+```
+
+**2. Network Policies:**
+```yaml
+# File: k8s/network-policy.yaml
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: pipeline-network-policy
+  namespace: data-pipeline
+spec:
+  podSelector:
+    matchLabels:
+      app: pipeline
+  policyTypes:
+  - Ingress
+  - Egress
+  egress:
+  - to: []  # Allow all outbound (for database connections)
+  ingress: []  # No inbound connections needed
+```
+
+**3. Pod Security Standards:**
+```yaml
+# File: k8s/pod-security.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pipeline-pod
+  namespace: data-pipeline
+spec:
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 1000
+    fsGroup: 1000
+  containers:
+  - name: dlt-runner
+    securityContext:
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      capabilities:
+        drop:
+        - ALL
+```
+
+### Scaling and Performance
+
+**Horizontal Pod Autoscaler:**
+```yaml
+# File: k8s/hpa.yaml
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: pipeline-hpa
+  namespace: data-pipeline
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: pipeline-runner
+  minReplicas: 1
+  maxReplicas: 5
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+```
+
+### Production Considerations
+
+**1. Resource Planning:**
+- **CPU**: 1-2 cores per pipeline job
+- **Memory**: 2-4GB per job (depending on chunk size)
+- **Storage**: Plan for 2-3x data size for archive storage
+- **Network**: Consider database connection limits
+
+**2. High Availability:**
+- Use ReadWriteMany storage for shared archive access
+- Deploy across multiple availability zones
+- Configure pod disruption budgets
+- Implement health checks and readiness probes
+
+**3. Backup and Recovery:**
+- Regular backup of archive and manifest storage
+- Database backup coordination with pipeline schedules
+- Disaster recovery procedures
+- Archive data retention policies
+
+**4. Monitoring and Alerting:**
+- Job completion/failure alerts
+- Resource utilization monitoring
+- Archive storage capacity monitoring
+- Database connection health checks
+
+### OpenShift-Specific Features
+
+**1. Routes for Management Interface:**
+```yaml
+# File: openshift/route.yaml
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: pipeline-management
+  namespace: data-pipeline
+spec:
+  to:
+    kind: Service
+    name: pipeline-management-service
+  port:
+    targetPort: 8080
+  tls:
+    termination: edge
+```
+
+**2. Security Context Constraints:**
+```yaml
+# File: openshift/scc.yaml
+apiVersion: security.openshift.io/v1
+kind: SecurityContextConstraints
+metadata:
+  name: pipeline-scc
+allowHostDirVolumePlugin: false
+allowHostIPC: false
+allowHostNetwork: false
+allowHostPID: false
+allowHostPorts: false
+allowPrivilegedContainer: false
+allowedCapabilities: []
+defaultAddCapabilities: []
+requiredDropCapabilities:
+- ALL
+runAsUser:
+  type: MustRunAsNonRoot
+```
+
+This comprehensive OpenShift/Kubernetes deployment guide provides enterprise-ready deployment options with security, scalability, and operational best practices for production environments.
+
 ## Testing Framework
 
 ### Unit Tests

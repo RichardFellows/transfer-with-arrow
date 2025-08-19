@@ -1,0 +1,51 @@
+# Kubernetes/OpenShift environment configuration
+# File: dlt_scripts/config/environments/k8s.yaml
+
+pipeline:
+  name: "k8s_data_pipeline"
+  dataset_name: "DestinationDB"
+  chunk_size: 10000
+  pipeline_mode: "two-stage"
+  backend: "pyarrow"
+  loader_file_format: "parquet"
+  naming_convention: "direct"
+
+# Archive configuration for Kubernetes persistent volumes
+archive:
+  storage_path: "/data/archive"
+  manifest_path: "/data/manifests"
+  retention_days: 30
+  compression: "snappy"
+
+connections:
+  source:
+    connection_string: "${SOURCE_CONNECTION_STRING}"
+    schema: "dbo"
+    timeout: 300
+  destination:
+    connection_string: "${DEST_CONNECTION_STRING}"
+    schema: "dbo"
+    timeout: 300
+
+tables:
+  # Production table configuration for Kubernetes
+  Reporting_Client:
+    source_table: "dbo.Reporting_Client"
+    destination_table: "Reporting_Client"
+    disposition: "append"
+    incremental:
+      enabled: true
+      strategy: "sequence"
+      watermark_column: "SystemCalendarID"
+      initial_value: 0
+    enabled: true
+    primary_key: ["RecordID"]
+
+verification:
+  enabled: true
+  tolerance: 0
+
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file_path: "/data/logs/pipeline.log"
