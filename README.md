@@ -29,7 +29,11 @@ This project demonstrates a complete, enterprise-ready data pipeline solution us
 
 ## Quick Start
 
-### Prerequisites
+**Choose your development approach:**
+- 🐳 **[Docker Setup](#quick-start)** - Containerized environment (recommended for production)
+- 🖥️ **[Local Development](#-local-development-setup-alternative-to-docker)** - Direct Python execution with `uv`
+
+### Prerequisites (Docker)
 - Docker and Docker Compose
 - Make (optional, for convenience commands)
 
@@ -441,6 +445,217 @@ connections:
 ```
 
 This setup provides a complete testing environment for the two-stage pipeline with your specific SQL Server configuration.
+
+## 🖥️ Local Development Setup (Alternative to Docker)
+
+For developers who prefer to run locally without Docker, you can use `uv` for fast Python environment management.
+
+### Prerequisites for Local Development
+
+1. **Python 3.11+**: Ensure Python 3.11 or later is installed
+2. **uv**: Install [uv](https://docs.astral.sh/uv/) for fast package management
+3. **ODBC Driver**: Install [Microsoft ODBC Driver 18 for SQL Server](https://docs.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server)
+4. **SQL Server Access**: Ensure your Windows account has access to both SQL Server instances
+
+### Step 1: Local Environment Setup
+
+```bash
+# Navigate to the dlt_scripts directory
+cd dlt_scripts
+
+# Create virtual environment with uv
+uv venv --python 3.11
+
+# Activate virtual environment
+# Windows:
+.venv\Scripts\activate
+# macOS/Linux:
+source .venv/bin/activate
+
+# Install dependencies
+uv pip install -r requirements.txt
+
+# Optional: Install test dependencies if you want to run tests
+uv pip install -r requirements-test.txt
+```
+
+### Step 2: Set Environment Variables
+
+**Windows (PowerShell):**
+```powershell
+# Set environment variables for SQL Server connections
+$env:SOURCE_CONNECTION_STRING = "DRIVER={ODBC Driver 18 for SQL Server};SERVER=SOURCEDB\MAIN_INSTANCE;DATABASE=SourceDatabase;Trusted_Connection=yes;TrustServerCertificate=yes;Encrypt=yes"
+$env:DEST_CONNECTION_STRING = "DRIVER={ODBC Driver 18 for SQL Server};SERVER=DESTDB\VIRT_INSTANCE;DATABASE=DestDatabase;Trusted_Connection=yes;TrustServerCertificate=yes;Encrypt=yes"
+```
+
+**Linux/macOS (Bash):**
+```bash
+export SOURCE_CONNECTION_STRING="DRIVER={ODBC Driver 18 for SQL Server};SERVER=SOURCEDB\\MAIN_INSTANCE;DATABASE=SourceDatabase;Trusted_Connection=yes;TrustServerCertificate=yes;Encrypt=yes"
+export DEST_CONNECTION_STRING="DRIVER={ODBC Driver 18 for SQL Server};SERVER=DESTDB\\VIRT_INSTANCE;DATABASE=DestDatabase;Trusted_Connection=yes;TrustServerCertificate=yes;Encrypt=yes"
+```
+
+### Step 3: Create Local Developer Configuration
+
+Create `config/environments/local.yaml`:
+
+```yaml
+# Local development environment configuration
+# File: dlt_scripts/config/environments/local.yaml
+
+pipeline:
+  name: "local_two_stage_test"
+  dataset_name: "DestDatabase"  # Your destination database name
+  chunk_size: 1000              # Smaller chunks for testing
+  pipeline_mode: "two-stage"    # Enable two-stage functionality
+  backend: "pyarrow"
+  loader_file_format: "parquet"
+  naming_convention: "direct"   # Preserve original column names
+
+# Archive configuration for local two-stage workflow
+archive:
+  storage_path: "./data/archive"              # Local directory path
+  manifest_path: "./data/manifests"          # Local manifest storage
+  retention_days: 7                          # Short retention for testing
+  compression: "snappy"                      # Fast compression
+
+connections:
+  source:
+    connection_string: "${SOURCE_CONNECTION_STRING}"
+    schema: "dbo"
+    timeout: 60
+  destination:
+    connection_string: "${DEST_CONNECTION_STRING}"
+    schema: "dbo"
+    timeout: 60
+
+tables:
+  # Single table configuration for testing
+  Reporting_Client:
+    source_table: "dbo.Reporting_Client"
+    destination_table: "Reporting_Client"    # Keep original name
+    disposition: "append"
+    incremental:
+      enabled: true
+      strategy: "sequence"
+      watermark_column: "SystemCalendarID"
+      initial_value: 0
+    enabled: true
+    primary_key: ["RecordID"]
+
+# Disable verification for faster testing (optional)
+verification:
+  enabled: false
+
+logging:
+  level: "DEBUG"                             # Verbose logging for development
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file_path: "./logs/local_pipeline.log"    # Local log file
+```
+
+### Step 4: Create Local Directories
+
+```bash
+# Create necessary directories for local development
+mkdir -p data/archive
+mkdir -p data/manifests  
+mkdir -p logs
+
+# Verify directory structure
+ls -la data/
+```
+
+### Step 5: Run Pipeline Locally
+
+Now you can run the pipeline directly without Docker:
+
+```bash
+# Navigate to dlt_scripts directory (if not already there)
+cd dlt_scripts
+
+# Activate virtual environment (if not already active)
+source .venv/bin/activate  # macOS/Linux
+# or
+.venv\Scripts\activate     # Windows
+
+# Run complete two-stage workflow
+python run_pipeline.py run --environment local
+
+# Or run separate steps:
+# Extract data to parquet archive
+python run_pipeline.py extract --environment local
+
+# View archived data
+python run_pipeline.py archive list
+
+# Load from archive
+python run_pipeline.py load --batch latest --environment local
+```
+
+### Step 6: Local Development Commands
+
+```bash
+# Check archive statistics
+python run_pipeline.py archive stats --environment local
+
+# View detailed batch information
+python run_pipeline.py archive info BATCH_ID --environment local
+
+# Validate configuration
+python run_pipeline.py validate --environment local
+
+# Show pipeline statistics
+python run_pipeline.py stats --environment local
+
+# Run with specific tables only
+python run_pipeline.py run --environment local --tables Reporting_Client
+
+# Save results to JSON file
+python run_pipeline.py run --environment local --output results.json
+```
+
+### Local vs Docker Comparison
+
+| Aspect | Local Development | Docker Development |
+|--------|-------------------|-------------------|
+| **Setup Time** | ⚡ Fast with `uv` | 🐌 Docker image build/pull |
+| **Resource Usage** | 💚 Lower memory/CPU | 📈 Higher overhead |
+| **Debugging** | 🛠️ Direct IDE integration | 🔍 Container debugging |
+| **File Access** | 📁 Direct filesystem | 🗂️ Volume mounts |
+| **Isolation** | ⚠️ Uses system resources | 🔒 Full isolation |
+| **Dependencies** | 📦 Manual ODBC setup | ✅ Pre-configured |
+
+### Local Development Tips
+
+1. **Performance**: Local execution is typically faster due to no containerization overhead
+2. **Debugging**: Use your favorite IDE/debugger directly on the code
+3. **File Paths**: Archive and manifest paths use local filesystem (`./data/`)
+4. **Logs**: Log files are written to `./logs/` for easy access
+5. **Hot Reloading**: Make code changes and test immediately without rebuilds
+
+### Troubleshooting Local Setup
+
+**ODBC Driver Issues:**
+```bash
+# Test ODBC driver installation
+python -c "import pyodbc; print(pyodbc.drivers())"
+```
+
+**Connection Testing:**
+```bash
+# Test connections before running pipeline
+python run_pipeline.py validate --environment local
+```
+
+**Virtual Environment Issues:**
+```bash
+# Recreate environment if needed
+rm -rf .venv
+uv venv --python 3.11
+source .venv/bin/activate
+uv pip install -r requirements.txt
+```
+
+This local setup provides the same functionality as Docker but with faster iteration cycles for development.
 
 ## Testing Framework
 
