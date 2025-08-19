@@ -35,15 +35,37 @@ This project demonstrates a complete, enterprise-ready data pipeline solution us
 
 ### Prerequisites (Docker)
 - Docker and Docker Compose
-- Make (optional, for convenience commands)
+- **Command Line Tools** (choose one):
+  - 🐧 **Make** (Linux/macOS/WSL) - Standard Unix build tool
+  - 🟦 **PowerShell** (Windows) - Use included `scripts.ps1`
+  - ⬛ **CMD** (Windows) - Use included `scripts.cmd`
 
 ### 1. Setup Environment
+
+**Linux/macOS/WSL (Make):**
 ```bash
 # Start all containers and setup databases
 make setup
 ```
 
+**Windows PowerShell:**
+```powershell
+# Import PowerShell functions
+. .\scripts.ps1
+
+# Start all containers and setup databases
+Setup-Environment
+```
+
+**Windows CMD:**
+```cmd
+# Start all containers and setup databases
+scripts setup
+```
+
 ### 2. Run Data Migration
+
+**Linux/macOS/WSL (Make):**
 ```bash
 # Run pipeline with default configuration
 make pipeline-run
@@ -55,7 +77,33 @@ make pipeline-run-dev
 make reporting-client-sync
 ```
 
+**Windows PowerShell:**
+```powershell
+# Run pipeline with default configuration
+Run-Pipeline
+
+# Run with development environment settings
+Run-PipelineDev
+
+# Run specific tables only
+Sync-ReportingClient
+```
+
+**Windows CMD:**
+```cmd
+# Run pipeline with default configuration
+scripts pipeline-run
+
+# Run with development environment settings
+scripts pipeline-run-dev
+
+# Run specific tables only
+scripts reporting-client-sync
+```
+
 ### 3. Validate and Monitor
+
+**Linux/macOS/WSL (Make):**
 ```bash
 # Validate configuration
 make pipeline-validate
@@ -65,6 +113,30 @@ make pipeline-stats
 
 # View detailed logs
 make logs
+```
+
+**Windows PowerShell:**
+```powershell
+# Validate configuration
+Validate-Pipeline
+
+# Show pipeline statistics
+Show-PipelineStats
+
+# View detailed logs
+Show-Logs
+```
+
+**Windows CMD:**
+```cmd
+# Validate configuration
+scripts pipeline-validate
+
+# Show pipeline statistics
+scripts pipeline-stats
+
+# View detailed logs
+scripts logs
 ```
 
 ## Commands Reference
@@ -656,6 +728,206 @@ uv pip install -r requirements.txt
 ```
 
 This local setup provides the same functionality as Docker but with faster iteration cycles for development.
+
+## 🪟 Windows Scripts (Alternative to Make)
+
+For Windows developers who don't have Make installed, we provide PowerShell and CMD equivalents for all Makefile commands.
+
+### PowerShell Scripts (`scripts.ps1`)
+
+**Setup:**
+```powershell
+# Import the PowerShell functions (run once per session)
+. .\scripts.ps1
+
+# Show all available commands
+Show-Help
+```
+
+**Key PowerShell Functions:**
+```powershell
+# Environment Management
+Setup-Environment         # Start and configure Docker environment
+Start-Environment         # Start Docker containers
+Stop-Environment          # Stop Docker containers
+Clean-Environment         # Remove containers and volumes
+
+# Pipeline Operations  
+Run-Pipeline              # Run default pipeline
+Run-PipelineDev          # Run with dev environment
+Sync-ReportingClient     # Sync specific table
+Validate-Pipeline        # Validate configuration
+Show-PipelineStats       # Show statistics
+
+# Two-Stage Operations
+Extract-Data -Tables @("Reporting_Client") -Environment "dev"
+Load-Data -Batch "latest" -Environment "dev"
+Show-ArchiveList -Last 10
+Show-ArchiveStats
+Clean-Archive -OlderThan "7d"
+
+# Local Development
+Setup-LocalEnvironment   # Setup local Python environment
+Run-LocalPipeline -Environment "local" -Mode "two-stage"
+Extract-LocalData -Environment "local"
+Load-LocalData -Environment "local" -Batch "latest"
+Test-LocalConnection     # Test ODBC drivers
+
+# Development Tools
+Show-Logs               # View container logs
+Enter-Shell            # Access container shell
+Connect-SourceDB       # Connect to source database
+Connect-DestDB         # Connect to destination database
+```
+
+### CMD Batch Scripts (`scripts.cmd`)
+
+**Usage:**
+```cmd
+# Show all available commands
+scripts help
+
+# Basic operations
+scripts setup              # Setup environment
+scripts pipeline-run       # Run pipeline
+scripts pipeline-validate  # Validate config
+
+# Two-stage operations
+scripts extract            # Extract with default environment
+scripts extract dev       # Extract with dev environment
+scripts load              # Load latest batch
+scripts load 20240818_120000  # Load specific batch
+
+# Archive management
+scripts archive-list       # List last 10 batches
+scripts archive-list 20   # List last 20 batches
+scripts archive-stats      # Show archive statistics
+scripts archive-cleanup    # Clean with default retention (30d)
+scripts archive-cleanup 7d # Clean batches older than 7 days
+
+# Local development
+scripts local-setup        # Setup local environment
+scripts local-run          # Run locally
+scripts local-extract      # Extract locally
+scripts local-load         # Load locally
+scripts local-test-connection  # Test ODBC
+
+# Development tools
+scripts logs               # View logs
+scripts shell             # Access shell
+scripts sql-source        # Connect to source DB
+scripts sql-dest          # Connect to destination DB
+```
+
+### Comparison: Make vs PowerShell vs CMD
+
+| Feature | Make | PowerShell | CMD |
+|---------|------|------------|-----|
+| **Platform** | ✅ Linux/macOS/WSL | 🟦 Windows | ⬛ Windows |
+| **Syntax** | `make command` | `Function-Name` | `scripts command` |
+| **Parameters** | `make cmd VAR=value` | `-Parameter value` | `scripts cmd param` |
+| **Help** | `make help` | `Show-Help` | `scripts help` |
+| **Tab Completion** | ✅ Yes | ✅ Yes | ❌ No |
+| **Advanced Features** | ✅ Variables, conditionals | ✅ Rich parameters, objects | ⚠️ Basic scripting |
+
+### Examples for Each Platform
+
+**Setup and Run Pipeline:**
+
+**Make:**
+```bash
+make setup && make pipeline-run
+```
+
+**PowerShell:**
+```powershell
+Setup-Environment
+Run-Pipeline
+```
+
+**CMD:**
+```cmd
+scripts setup && scripts pipeline-run
+```
+
+**Two-Stage Workflow:**
+
+**Make:**
+```bash
+make pipeline-extract && make pipeline-load
+```
+
+**PowerShell:**
+```powershell
+Extract-Data -Environment "dev"
+Load-Data -Batch "latest" -Environment "dev"
+```
+
+**CMD:**
+```cmd
+scripts extract dev
+scripts load latest
+```
+
+**Local Development Setup:**
+
+**Make:**
+```bash
+cd dlt_scripts
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+**PowerShell:**
+```powershell
+Setup-LocalEnvironment  # Handles everything automatically
+```
+
+**CMD:**
+```cmd
+scripts local-setup
+```
+
+### Windows-Specific Features
+
+**PowerShell Advantages:**
+- Rich parameter validation and type safety
+- Object-oriented output and pipeline support
+- Advanced error handling and progress indicators
+- Tab completion for function names and parameters
+- Colored output for better visibility
+
+**CMD Advantages:**
+- Available on all Windows systems (no PowerShell required)
+- Simple syntax familiar to batch file users
+- Fast execution with minimal overhead
+- Compatible with legacy Windows environments
+
+### Installation and Usage
+
+**PowerShell (Recommended for Windows):**
+```powershell
+# Navigate to project directory
+cd transfer-with-arrow
+
+# Import functions (do this once per PowerShell session)
+. .\scripts.ps1
+
+# Use any function
+Setup-Environment
+```
+
+**CMD (Legacy Windows Support):**
+```cmd
+# Navigate to project directory  
+cd transfer-with-arrow
+
+# Use any command
+scripts setup
+scripts pipeline-run
+```
+
+Both Windows alternatives provide the same functionality as Make, ensuring that Windows developers have a seamless experience regardless of their preferred command line environment.
 
 ## Testing Framework
 
