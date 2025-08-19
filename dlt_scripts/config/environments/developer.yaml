@@ -1,0 +1,50 @@
+# Developer environment configuration for two-stage pipeline testing
+# File: dlt_scripts/config/environments/developer.yaml
+
+pipeline:
+  name: "developer_two_stage_test"
+  dataset_name: "DestDatabase"  # Your destination database name
+  chunk_size: 1000              # Smaller chunks for testing
+  pipeline_mode: "two-stage"    # Enable two-stage functionality
+  backend: "pyarrow"
+  loader_file_format: "parquet"
+  naming_convention: "direct"   # Preserve original column names
+
+# Archive configuration for two-stage workflow
+archive:
+  storage_path: "/app/data/archive"           # Docker container path
+  manifest_path: "/app/data/manifests"       # Manifest storage
+  retention_days: 7                          # Short retention for testing
+  compression: "snappy"                      # Fast compression
+
+connections:
+  source:
+    connection_string: "${SOURCE_CONNECTION_STRING}"
+    schema: "dbo"
+    timeout: 60
+  destination:
+    connection_string: "${DEST_CONNECTION_STRING}"
+    schema: "dbo"
+    timeout: 60
+
+tables:
+  # Single table configuration for testing
+  Reporting_Client:
+    source_table: "dbo.Reporting_Client"
+    destination_table: "Reporting_Client"    # Keep original name
+    disposition: "append"
+    incremental:
+      enabled: true
+      strategy: "sequence"
+      watermark_column: "SystemCalendarID"
+      initial_value: 0
+    enabled: true
+    primary_key: ["RecordID"]
+
+# Disable verification for faster testing (optional)
+verification:
+  enabled: false
+
+logging:
+  level: "DEBUG"                             # Verbose logging for development
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"

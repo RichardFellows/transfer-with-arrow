@@ -242,6 +242,206 @@ Create environment-specific overrides in `dlt_scripts/config/environments/`:
 
 See `dlt_scripts/README.md` for comprehensive configuration documentation.
 
+## 🚀 Developer Quick Start: Two-Stage Pipeline
+
+This section provides step-by-step instructions for developers to quickly set up and test the two-stage pipeline with SQL Server Windows Authentication.
+
+### Prerequisites
+
+1. **SQL Server Access**: Ensure you have access to both source and destination SQL Server instances
+2. **ODBC Driver**: Install [Microsoft ODBC Driver 18 for SQL Server](https://docs.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server)
+3. **Windows Authentication**: Ensure your Windows account has access to both SQL Server instances
+4. **Docker**: Docker Desktop installed and running
+
+### Step 1: Environment Setup
+
+Create environment variables for your SQL Server connections:
+
+**Windows (PowerShell):**
+```powershell
+# Set environment variables for SQL Server connections
+$env:SOURCE_CONNECTION_STRING = "DRIVER={ODBC Driver 18 for SQL Server};SERVER=SOURCEDB\MAIN_INSTANCE;DATABASE=SourceDatabase;Trusted_Connection=yes;TrustServerCertificate=yes;Encrypt=yes"
+$env:DEST_CONNECTION_STRING = "DRIVER={ODBC Driver 18 for SQL Server};SERVER=DESTDB\VIRT_INSTANCE;DATABASE=DestDatabase;Trusted_Connection=yes;TrustServerCertificate=yes;Encrypt=yes"
+```
+
+**Linux/macOS (Bash):**
+```bash
+export SOURCE_CONNECTION_STRING="DRIVER={ODBC Driver 18 for SQL Server};SERVER=SOURCEDB\\MAIN_INSTANCE;DATABASE=SourceDatabase;Trusted_Connection=yes;TrustServerCertificate=yes;Encrypt=yes"
+export DEST_CONNECTION_STRING="DRIVER={ODBC Driver 18 for SQL Server};SERVER=DESTDB\\VIRT_INSTANCE;DATABASE=DestDatabase;Trusted_Connection=yes;TrustServerCertificate=yes;Encrypt=yes"
+```
+
+### Step 2: Create Developer Configuration
+
+Create a new configuration file `dlt_scripts/config/environments/developer.yaml`:
+
+```yaml
+# Developer environment configuration for two-stage pipeline testing
+# File: dlt_scripts/config/environments/developer.yaml
+
+pipeline:
+  name: "developer_two_stage_test"
+  dataset_name: "DestDatabase"  # Your destination database name
+  chunk_size: 1000              # Smaller chunks for testing
+  pipeline_mode: "two-stage"    # Enable two-stage functionality
+  backend: "pyarrow"
+  loader_file_format: "parquet"
+  naming_convention: "direct"   # Preserve original column names
+
+# Archive configuration for two-stage workflow
+archive:
+  storage_path: "/app/data/archive"           # Docker container path
+  manifest_path: "/app/data/manifests"       # Manifest storage
+  retention_days: 7                          # Short retention for testing
+  compression: "snappy"                      # Fast compression
+
+connections:
+  source:
+    connection_string: "${SOURCE_CONNECTION_STRING}"
+    schema: "dbo"
+    timeout: 60
+  destination:
+    connection_string: "${DEST_CONNECTION_STRING}"
+    schema: "dbo"
+    timeout: 60
+
+tables:
+  # Single table configuration for testing
+  Reporting_Client:
+    source_table: "dbo.Reporting_Client"
+    destination_table: "Reporting_Client"    # Keep original name
+    disposition: "append"
+    incremental:
+      enabled: true
+      strategy: "sequence"
+      watermark_column: "SystemCalendarID"
+      initial_value: 0
+    enabled: true
+    primary_key: ["RecordID"]
+
+# Disable verification for faster testing (optional)
+verification:
+  enabled: false
+
+logging:
+  level: "DEBUG"                             # Verbose logging for development
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+```
+
+### Step 3: Start Environment
+
+```bash
+# Start the Docker environment
+make up
+
+# Verify containers are running
+docker ps
+```
+
+### Step 4: Test Two-Stage Pipeline
+
+#### Option A: Complete Two-Stage Workflow
+```bash
+# Run complete extract → load workflow
+docker exec dlt-runner python /app/run_pipeline.py run --mode two-stage --environment developer
+
+# Alternative: Use environment config that sets mode automatically
+docker exec dlt-runner python /app/run_pipeline.py run --environment developer
+```
+
+#### Option B: Separate Extract and Load Steps
+```bash
+# Step 1: Extract data to parquet archive
+docker exec dlt-runner python /app/run_pipeline.py extract --environment developer
+
+# Step 2: View archived data
+docker exec dlt-runner python /app/run_pipeline.py archive list
+
+# Step 3: Load from archive
+docker exec dlt-runner python /app/run_pipeline.py load --batch latest --environment developer
+```
+
+### Step 5: Monitor and Verify
+
+```bash
+# Check archive statistics
+docker exec dlt-runner python /app/run_pipeline.py archive stats --environment developer
+
+# View detailed batch information
+docker exec dlt-runner python /app/run_pipeline.py archive info BATCH_ID --environment developer
+
+# Check container logs
+docker logs dlt-runner
+
+# Access container shell for debugging
+docker exec -it dlt-runner bash
+```
+
+### Connection String Reference
+
+For different authentication methods:
+
+**Windows Authentication (Recommended):**
+```
+DRIVER={ODBC Driver 18 for SQL Server};SERVER=SOURCEDB\MAIN_INSTANCE;DATABASE=SourceDatabase;Trusted_Connection=yes;TrustServerCertificate=yes;Encrypt=yes
+```
+
+**SQL Server Authentication:**
+```
+DRIVER={ODBC Driver 18 for SQL Server};SERVER=SOURCEDB\MAIN_INSTANCE;DATABASE=SourceDatabase;UID=username;PWD=password;TrustServerCertificate=yes;Encrypt=yes
+```
+
+**Connection String Parameters:**
+- `TrustServerCertificate=yes` - Accepts self-signed certificates
+- `Encrypt=yes` - Enables encryption (required for ODBC Driver 18)
+- `Trusted_Connection=yes` - Uses Windows Authentication
+- `ConnectRetryCount=3` - Connection retry attempts (optional)
+- `ConnectRetryInterval=10` - Retry interval in seconds (optional)
+
+### Troubleshooting
+
+**Common Issues:**
+
+1. **Connection Timeout:**
+   ```bash
+   # Increase timeout in configuration
+   timeout: 120
+   ```
+
+2. **Archive Permission Issues:**
+   ```bash
+   # Check archive directory permissions
+   docker exec dlt-runner ls -la /app/data/
+   ```
+
+3. **ODBC Driver Issues:**
+   ```bash
+   # Verify ODBC driver in container
+   docker exec dlt-runner odbcinst -q -d
+   ```
+
+4. **Windows Authentication Issues:**
+   - Ensure Docker Desktop is running with Windows authentication enabled
+   - Verify your Windows account has SQL Server access
+   - Test connection outside Docker first
+
+### Performance Tuning
+
+For large tables, adjust these settings in your developer config:
+
+```yaml
+pipeline:
+  chunk_size: 5000              # Increase for better performance
+
+archive:
+  compression: "lz4"            # Faster compression for testing
+  
+connections:
+  source:
+    timeout: 300                # Longer timeout for large queries
+```
+
+This setup provides a complete testing environment for the two-stage pipeline with your specific SQL Server configuration.
+
 ## Testing Framework
 
 ### Unit Tests
