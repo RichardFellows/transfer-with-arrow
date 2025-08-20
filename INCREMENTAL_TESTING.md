@@ -178,7 +178,7 @@ Based on testing with 8M records and 130+ columns:
 
 ## Configuration Details
 
-### Pipeline Configuration (`reporting_client_config.yaml`)
+### Pipeline Configuration (`pipeline_config.yaml`)
 
 ```yaml
 pipeline:

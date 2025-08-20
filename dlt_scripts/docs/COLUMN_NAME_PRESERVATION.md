@@ -29,7 +29,7 @@ When `naming_convention: "direct"` is set:
 
 ### Basic Usage
 ```yaml
-# reporting_client_config_preserve_names.yaml
+# pipeline_config.yaml (with direct naming)
 pipeline:
   naming_convention: "direct"
   
@@ -172,9 +172,9 @@ pipeline:
 
 ## Testing
 
-Test configurations are provided:
-- `reporting_client_config.yaml` - Standard snake_case transformation
-- `reporting_client_config_preserve_names.yaml` - Column name preservation (when working)
+Test configurations can be created with:
+- `naming_convention: "snake_case"` - Standard snake_case transformation (default)
+- `naming_convention: "direct"` - Column name preservation
 
 ## Future Enhancements
 

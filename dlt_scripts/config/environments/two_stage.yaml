@@ -1,0 +1,39 @@
+# Two-stage pipeline environment configuration
+# Enables parquet archive functionality for extract-then-load workflow
+
+pipeline:
+  pipeline_mode: "two_stage"
+
+archive:
+  enabled: true
+  storage_path: "/data/parquet_archive"
+  manifest_path: "/data/manifests"
+  retention_days: 90
+  compression: "snappy"
+  partitioning:
+    enabled: true
+    column: "SystemCalendarID"
+
+extract:
+  batch_naming: "YYYYMMDD_HHMMSS"
+  metadata:
+    include_source_stats: true
+    include_schema_info: true
+
+load:
+  allow_historical: true
+  batch_selection: "latest"
+  verification_mode: "standard"
+  concurrent_batches: 1
+
+verification:
+  enabled: true
+  tolerance: 0
+  tables: ["Reporting_Client", "Reporting_Client_SCD2"]
+  custom_checks:
+    # Custom verification queries for reporting data
+    reporting_client_data_check: "SELECT COUNT(*) FROM reporting_data.reporting_client WHERE SystemCalendarID IS NULL"
+    scd2_integrity_check: "SELECT COUNT(*) FROM reporting_data.reporting_client_scd2 WHERE IsLatest = 1 GROUP BY ClientBusinessKey HAVING COUNT(*) > 1"
+
+logging:
+  level: "INFO"

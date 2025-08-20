@@ -3,7 +3,7 @@
 
 pipeline:
   name: "reporting_data_migration"
-  dataset_name: "reporting_data"
+  dataset_name: "TargetDB"
   chunk_size: 10000
   backend: "pyarrow"
   loader_file_format: "parquet"
@@ -19,7 +19,7 @@ connections:
     timeout: 30
   destination:
     connection_string: "${DEST_CONNECTION_STRING}"
-    schema: "reporting_data"
+    schema: "dbo"
     timeout: 30
 
 tables:

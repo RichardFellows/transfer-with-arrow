@@ -1,0 +1,33 @@
+# Load-only pipeline environment configuration
+# Only loads data from parquet archive to destination, no extraction
+
+pipeline:
+  pipeline_mode: "load_only"
+
+archive:
+  enabled: true
+  storage_path: "/data/parquet_archive"
+  manifest_path: "/data/manifests"
+  retention_days: 90
+
+# Extract configuration not used in load-only mode
+extract:
+  batch_naming: "YYYYMMDD_HHMMSS"
+
+load:
+  allow_historical: true
+  batch_selection: "latest"
+  verification_mode: "standard"
+  concurrent_batches: 1
+
+verification:
+  enabled: true
+  tolerance: 0
+  tables: ["Reporting_Client", "Reporting_Client_SCD2"]
+  custom_checks:
+    # Custom verification queries for reporting data
+    reporting_client_data_check: "SELECT COUNT(*) FROM reporting_data.reporting_client WHERE SystemCalendarID IS NULL"
+    scd2_integrity_check: "SELECT COUNT(*) FROM reporting_data.reporting_client_scd2 WHERE IsLatest = 1 GROUP BY ClientBusinessKey HAVING COUNT(*) > 1"
+
+logging:
+  level: "INFO"
